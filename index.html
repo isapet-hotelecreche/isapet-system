@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Isa Pet Hotel & Creche</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <style>
+:root {
+  /* Fundo geral da tela – lilás bem clarinho */
+  --bg:#f4e9ff;
+
+  /* Caixinhas / painéis – branco, igual card do Forms */
+  --panel:#ffffff;
+
+  /* Fundos suaves (linhas, caixas secundárias) – lilás claro */
+  --muted:#ebddff;
+
+  /* Cor principal (botões, destaques) – roxinho do logo */
+  --accent:#a855f7;
+
+  /* Versão mais clara do accent (hover, bolinhas, bordas) */
+  --accent-2:#c4b5fd;
+
+  /* Textos */
+  --text:#111827;      /* preto suave */
+  --text-dim:#6b7280;  /* cinza para textos secundários */
+
+  /* Cores de status (mantive parecidas com as atuais) */
+  --danger:#ef4444;
+  --warn:#f59e0b;
+  --info:#3b82f6;
+
+  /* Cantos arredondados dos painéis/botões */
+  --radius:16px;
+}
+/* ==== CAMPOS DO FORMULÁRIO (inputs, selects, etc) ==== */
+input, select, textarea {
+  background: #ffffff !important;
+  color: var(--text) !important;
+  border: 1px solid #d4bbff !important; /* lilás clarinho */
+  padding: 6px 10px;
+  border-radius: 8px;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--accent) !important;
+  background: #faf5ff !important; /* lilás muito suave */
+}
+
+/* ==== TABELAS (check-in / check-out / listagens) ==== */
+table {
+  background: #ffffff !important;
+  border-radius: 12px;
+}
+
+table tr {
+  background: #ffffff !important;
+}
+
+table tr:nth-child(even) {
+  background: #f3eaff !important; /* lilás bem clarinho */
+}
+
+table td, table th {
+  color: var(--text);
+  padding: 8px;
+}
+
+/* ==== PAINÉIS / QUADROS / CARDS ==== */
+.panel, .card, .box, .area, .list, #c_tbody, #h_tbody, #p_tbody {
+  background: #ffffff !important;
+  border-radius: 16px;
+  padding: 8px;
+}
+
+/* ==== BARRAS / CABEÇALHOS / ÁREAS SECUNDÁRIAS ==== */
+header, .topbar, .tabs {
+  background: #ebddff !important;
+  color: var(--text);
+}
+/* ==== LISTA DE AGENDAMENTOS (Check-in / Check-out) ==== */
+.list-scroll{
+  background:#ffffff !important;
+  border:1px solid #d4bbff !important; /* lilás clarinho */
+  border-radius:12px !important;
+}
+
+.list-scroll table{
+  background:#ffffff !important;
+}
+
+.list-scroll tbody tr{
+  background:#ffffff !important;
+}
+
+.list-scroll tbody tr:nth-child(even){
+  background:#f3e8ff !important; /* lilás bem suave nas linhas pares */
+}
+
+.list-scroll th,
+.list-scroll td{
+  border-bottom:1px solid #e5e7eb !important;
+  color:var(--text);
+}
+/* ==== TAGS DE STATUS (hospedagem / creche) ==== */
+.tag{
+  padding:2px 8px;
+  border-radius:999px;
+  border:1px solid #d4bbff;
+  background:#f9f5ff;          /* lilás bem clarinho */
+  font-size:12px;
+  color:var(--text);            /* texto escuro, legível */
+}
+
+/* status verdinho (ex.: pago, confirmado) */
+.tag-green{
+  background:#bbf7d0;           /* verdinho claro */
+  border-color:#16a34a;
+  color:#166534;                /* verde escuro no texto */
+}
+
+/* status vermelho (cancelado, erro, etc.) */
+.tag-red{
+  background:#fecaca;
+  border-color:#ef4444;
+  color:#7f1d1d;
+}
+
+/* status amarelo (pendente, atenção) */
+.tag-yellow{
+  background:#fef9c3;
+  border-color:#eab308;
+  color:#78350f;
+}
+
+/* chips azuis / laranja (usados em check-in etc.) */
+.chip-blue{
+  background:#dbeafe;
+  border-color:#1d4ed8;
+  color:#1e3a8a;
+}
+
+.chip-orange{
+  background:#ffedd5;
+  border-color:#f97316;
+  color:#7c2d12;                /* laranja escuro, bem visível */
+}
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Helvetica,Arial}
+    header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,0));position:sticky;top:0;backdrop-filter:blur(8px)}
+    header h1{margin:0;font-size:18px;letter-spacing:.5px}
+    .chip{display:inline-flex;gap:8px;align-items:center;background:var(--muted);padding:8px 12px;border-radius:999px;font-size:12px;color:var(--text-dim)}
+    .container{padding:20px;max-width:1200px;margin:0 auto}
+    .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+    .tab-btn{background:var(--panel);border:1px solid #222;color:var(--text);padding:10px 12px;border-radius:10px;cursor:pointer;font-weight:600}
+    .tab-btn.active{outline:2px solid var(--accent)}
+    .grid{display:grid;grid-template-columns:1fr;gap:16px}
+    .panel{background:var(--panel);border:1px solid #222;padding:16px;border-radius:var(--radius)}
+    .panel h2{margin:0 0 10px 0;font-size:16px}
+    label{display:block;font-size:12px;color:var(--text-dim);margin-top:8px}
+    input, select, textarea{width:100%;padding:10px;margin-top:6px;background:#0b1220;color:var(--text);border:1px solid #1f2937;border-radius:10px}
+    textarea{min-height:72px;resize:vertical}
+    .row{display:flex;gap:10px} .row>*{flex:1}
+    .btn{padding:10px 12px;border:none;border-radius:10px;font-weight:700;cursor:pointer}
+    .btn-primary{background:var(--accent);color:#052e16}
+    .btn-outline{background:transparent;color:var(--accent-2);border:1px dashed var(--accent)}
+    .btn-warn{background:var(--warn);color:#1f1300}
+    .btn-danger{background:var(--danger);color:#330a0a}
+    .btn-ghost{background:transparent;color:var(--text)}
+	/* Botão exclusivo de CHECK-IN (usa .btn-success no HTML) */
+.btn-success{
+  background: var(--accent) !important;   /* roxo principal do tema */
+  color: #ffffff !important;              /* texto branco */
+  border: 1px solid #7c3aed !important;   /* borda roxinha um pouco mais escura */
+}
+
+.btn-success:hover{
+  background: #7c3aed !important;         /* roxo mais escuro no hover */
+}
+    table{width:100%;border-collapse:collapse}
+    th,td{border-bottom:1px solid #222;text-align:left;padding:8px 6px;font-size:14px}
+    th{color:var(--text-dim);font-weight:600}
+    .muted{color:var(--text-dim)} .tag{padding:2px 8px;border-radius:999px;background:#0b1220;border:1px solid #1f2937;font-size:12px;display:inline-block}
+    .flex{display:flex;gap:8px;align-items:center} .right{margin-left:auto}
+    .list-scroll{max-height:360px;overflow:auto;border:1px solid #1f2937;border-radius:12px}
+    .calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:10px}
+    .cal-head{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;color:var(--text-dim);font-size:12px}
+    .day{padding:10px;border:1px solid #1f2937;border-radius:10px;min-height:60px;cursor:pointer}
+    .day.disabled{opacity:.4;pointer-events:none;background:#0b1220}
+    .day.selected{outline:2px solid var(--accent)}
+    .toast{position:fixed;right:16px;bottom:16px;background:#0b1220;border:1px solid #1f2937;padding:12px 14px;border-radius:12px}
+    .hidden{display:none!important}
+    .mono{font-family:ui-monospace,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+    .kbd{border:1px solid #1f2937;padding:2px 6px;border-radius:6px;background:#0b1220;font-size:12px}
+    .checkbox-inline{display:flex;align-items:center;gap:8px;margin-top:12px}
+	    /* Caixa dos pets em Hospedagem e Creche */
+    #h_pets_box,
+    #c_pets_box{
+      margin-top:6px;
+      padding:8px 10px;
+      border-radius:10px;
+      background:var(--muted);
+      border:1px solid #1f2937;
+      display:flex;
+      flex-wrap:wrap;
+      gap:6px 12px; /* espaço entre cada pet */
+    }
+
+    /* Cada linha de pet: checkbox colado no nome */
+    #h_pets_box .chk-inline,
+    #c_pets_box .chk-inline{
+      display:flex;
+      align-items:center;
+      gap:6px;          /* distância entre o quadradinho e o nome */
+      margin:2px 0;     /* tira aquele espaço gigante de label padrão */
+      font-size:13px;
+      color:var(--text);
+    }
+    .tag-green{background:rgba(34,197,94,.12);border-color:#16a34a;color:#86efac}
+    .tag-red{background:rgba(239,68,68,.12);border-color:#ef4444;color:#fecaca}
+    .tag-yellow{background:rgba(245,158,11,.12);border-color:#f59e0b;color:#fde68a}
+  
+    .day-block{margin:14px 0;padding:10px 12px;border:1px solid #1f2937;border-radius:10px;background:#0b1220}
+    .chip{display:inline-block;border:1px solid transparent;border-radius:999px;padding:2px 8px;font-size:12px;margin-left:6px}
+    .chip-blue{background:rgba(59,130,246,.12);border-color:#3b82f6;color:#93c5fd}
+    .chip-orange{background:rgba(251,146,60,.12);border-color:#fb923c;color:#fed7aa}
+    .flex.column{flex-direction:column}
+    .panel + .panel{margin-top:14px}
+
+  
+    @media (min-width:0px){
+      .grid{grid-template-columns:1fr !important}
+    }
+    
+    .sec-title{margin:8px 0 6px 0;padding:6px 10px;border-radius:8px;font-weight:700;display:inline-block}
+    .sec-creche{background:rgba(251,146,60,.12);border:1px solid #fb923c;color:#fed7aa}
+    .sec-hosp{background:rgba(59,130,246,.12);border:1px solid #3b82f6;color:#93c5fd}
+    .muted-sm{font-size:12px;opacity:.8}
+  /* ==== AJUSTES FINAIS DO TEMA LILÁS (DEIXAR ESSE BLOCO POR ÚLTIMO) ==== */
+.day-block{
+  margin:14px 0 !important;
+  padding:10px 12px !important;
+  border-radius:12px !important;
+  background:#f9f5ff !important;        /* lilás bem suave */
+  border:1px solid #ddcdfc !important;   /* borda lilás leve */
+  color: var(--text) !important;         /* texto padrão escuro do sistema */
+}
+
+/* Nome do pet em roxo escuro dentro da agenda */
+.day-block strong{
+  color:#581c87 !important;              /* roxo escuro confortável */
+  font-weight:700;
+}
+
+
+  .tag{
+    padding:2px 8px;
+    border-radius:999px;
+    font-size:12px;
+    background:#f9f5ff !important;       /* fundo lilás bem claro */
+    border:1px solid #d4bbff !important;  /* borda lilás */
+    color:var(--text) !important;         /* texto escuro */
+  }
+
+  .tag-green{
+    background:#bbf7d0 !important;
+    border-color:#16a34a !important;
+    color:#166534 !important;
+  }
+
+  .tag-red{
+    background:#fecaca !important;
+    border-color:#ef4444 !important;
+    color:#7f1d1d !important;
+  }
+
+  .tag-yellow{
+    background:#fef9c3 !important;
+    border-color:#eab308 !important;
+    color:#78350f !important;
+  }
+
+  .chip-blue{
+    background:#dbeafe !important;        /* azul claro */
+    border-color:#1d4ed8 !important;
+    color:#1e3a8a !important;             /* texto bem visível */
+  }
+
+  .chip-orange{
+    background:#ffedd5 !important;        /* laranja claro */
+    border-color:#f97316 !important;
+    color:#7c2d12 !important;             /* laranja escuro no texto */
+  }
+  /* ==== TEMA FINAL ISA PET HOTEL & CRECHE – AJUSTES GLOBAIS ==== */
+
+  /* Painéis principais (caixas grandes das abas) */
+  .panel{
+    background: var(--panel) !important;
+    border-radius: var(--radius) !important;
+    border: 1px solid #ddcdfc !important; /* lilás suave */
+    padding: 16px !important;
+  }
+
+/* Blocos de cada dia na agenda (Check-in/Check-out) */
+.day-block{
+  margin:14px 0 !important;
+  padding:10px 12px !important;
+  border-radius:12px !important;
+  background:#f9f5ff !important;        /* lilás bem suave, não cansa a vista */
+  border:1px solid #ddcdfc !important;   /* borda lilás leve */
+  color: var(--text) !important;         /* texto escuro padrão do sistema */
+}
+
+
+  /* Tabs (botões das abas Hospedagem / Creche / Pets / etc) */
+  .tab-btn{
+    background:#ede4ff !important;         /* lilás clarinho */
+    border:1px solid #ddcdfc !important;
+    color:var(--text-dim) !important;
+  }
+  .tab-btn.active{
+    background:#ffffff !important;         /* aba ativa branco */
+    color:var(--text) !important;
+    outline:2px solid var(--accent) !important;
+  }
+
+  /* Chips gerais (aqueles “botoõezinhos redondos” de info) */
+  .chip{
+    display:inline-flex;
+    gap:8px;
+    align-items:center;
+    background:#f3e8ff !important;         /* lilás intermediário */
+    padding:2px 12px !important;
+    border-radius:999px !important;
+    font-size:12px;
+    color:var(--text) !important;
+  }
+
+  /* Seções destacadas de HOSPEDAGEM e CRECHE (quadros coloridos) */
+  .sec-hosp{
+    background:#e0ecff !important;         /* azul bem clarinho */
+    border:1px solid #3b82f6 !important;
+    color:#1e3a8a !important;              /* azul escuro – super legível */
+  }
+  .sec-creche{
+    background:#ffe8d1 !important;         /* laranja clarinho */
+    border:1px solid #f97316 !important;
+    color:#7c2d12 !important;              /* laranja escuro no texto */
+  }
+
+  /* Chips pequenos de status (azul / laranja) */
+  .chip-blue{
+    background:#dbeafe !important;
+    border-color:#1d4ed8 !important;
+    color:#1e3a8a !important;
+  }
+
+  .chip-orange{
+    background:#ffedd5 !important;
+    border-color:#f97316 !important;
+    color:#7c2d12 !important;
+  }
+
+  /* Tags de status (pagou, pendente, cancelado, etc.) */
+  .tag{
+    padding:2px 8px;
+    border-radius:999px;
+    font-size:12px;
+    background:#f9f5ff !important;         /* lilás suave */
+    border:1px solid #ddcdfc !important;
+    color:var(--text) !important;          /* texto escuro, fácil de ler */
+  }
+
+  .tag-green{
+    background:#bbf7d0 !important;         /* verde claro */
+    border-color:#16a34a !important;
+    color:#166534 !important;              /* verde escuro no texto */
+  }
+
+  .tag-red{
+    background:#fecaca !important;
+    border-color:#ef4444 !important;
+    color:#7f1d1d !important;
+  }
+
+  .tag-yellow{
+    background:#fef9c3 !important;
+    border-color:#eab308 !important;
+    color:#78350f !important;
+  }
+/* Nome do pet em roxo escuro na aba Check-in/Out */
+.list-scroll tbody tr td:first-child{
+  color:#581c87 !important;   /* roxo escuro, bom contraste */
+  font-weight:600;            /* levemente em negrito */
+}
+
+/* Se o nome vier dentro de <strong>, garante a cor também */
+.list-scroll td strong{
+  color:#581c87 !important;
+}
+/* Texto da lista de agendamentos (Check-in/Out) em roxo escuro */
+.list-scroll td{
+  color:#581c87 !important;   /* roxo escuro confortável de ler */
+  font-weight:600;            /* levemente em negrito pra destacar */
+}
+
+/* Se algum nome estiver dentro de strong/b/big, garante a cor também */
+.list-scroll td strong,
+.list-scroll td b{
+  color:#581c87 !important;
+}
+/* Nome do pet na agenda (Check-in/Out) em roxo escuro */
+.day-block strong{
+  color:#581c87 !important;   /* roxo escuro confortável de ler */
+  font-weight:700;            /* deixa o nome bem marcadinho */
+}
+/* Nome do pet na agenda (Check-in/Out) */
+.pet-link{
+  color:#581c87 !important;   /* roxo escuro, confortável de ler */
+  font-weight:700;
+  text-decoration:none;
+}
+
+.pet-link:hover{
+  text-decoration:underline;
+}
+/* Textos da agenda (data, resumo, horários, valores) em preto */
+.muted,
+.muted-sm{
+  color: var(--text) !important;  /* usa o texto escuro padrão */
+}
+
+/* Títulos dos campos (labels) em preto nas abas */
+label{
+  color: var(--text) !important;
+  font-weight: 600;
+}
+/* Botões das abas com lilás mais forte e texto escuro */
+.tab-btn{
+  background:#d8b4fe !important;         /* lilás mais forte */
+  border:1px solid #a855f7 !important;   /* borda roxinha */
+  color:var(--text) !important;          /* texto escuro */
+}
+
+.tab-btn.active{
+  background:#ffffff !important;         /* aba ativa branca */
+  color:var(--text) !important;
+  outline:2px solid var(--accent) !important;  /* contorno roxinho */
+}
+/* ==== Ajuste final: deixar todos os textos da agenda em preto ==== */
+.day-block .muted,
+.day-block .muted-sm,
+.day-block span.muted,
+.day-block span.muted-sm{
+  color: var(--text) !important;     /* preto do sistema */
+  opacity: 1 !important;             /* garante que não fique apagado */
+}
+/* === BOTÃO CHECK-IN COM COR MAIS FORTE === */
+.btn-checkin {
+  background: var(--accent) !important;   /* Roxo principal */
+  color: white !important;
+  border: 1px solid var(--accent) !important;
+}
+
+.btn-checkin:hover {
+  background: var(--accent-2) !important; /* Roxo claro no hover */
+}
+
+  </style>
+  <style>
+  a.pet-link {
+    color: #ffffff;           /* branco */
+    text-decoration: underline; /* sublinhado */
+    font-weight: bold;        /* negrito */
+  }
+  a.pet-link:hover {
+    color: #ffffff;           /* mantém branco ao passar o mouse */
+    text-decoration: underline;
+  }
+</style>
+<style>
+  .note-flag { vertical-align: baseline; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>🐾 Isa Pet Hotel & Creche 🐾</h1>
+    <div class="chip">Banco: <strong>Local</strong> (IndexedDB) · Hoje: 2025-10-19</div>
+  </header>
+  <div class="container">
+    <div class="tabs" id="tabs"></div>
+    <div id="view"></div>
+  </div>
+  <div id="toast" class="toast hidden"></div>
+  <script>
+    const toast = (msg, ok=true) => { const t=document.getElementById('toast'); t.textContent=msg; t.classList.remove('hidden'); setTimeout(()=>t.classList.add('hidden'), 2200); };
+  </script>
+  <script src="db.js"></script>
+  <script src="ui.js"></script>
+  <script src="app.js"></script>
+  <script> if ('serviceWorker' in navigator) window.addEventListener('load', ()=>navigator.serviceWorker.register('./sw.js').catch(()=>{})); </script>
+
+  <footer style="margin-top:20px;padding:12px 0;border-top:1px solid #1f2937;text-align:center;color:#94a3b8">
+    IsaPet Lite — v3.5
+  </footer>
+</body>
+</html>
