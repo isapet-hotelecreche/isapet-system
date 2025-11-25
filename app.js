@@ -938,10 +938,54 @@ async function renderHosp(){
   loadHosp('');
 }
 async function loadHosp(q){
-  const tbody = document.getElementById('h_tbody'); tbody.innerHTML='';
-  const list = await DB.list('hospedagens', q);
-  const clientes = await DB.list('clientes'); const byCli = Object.fromEntries(clientes.map(c=>[c.id,c]));
-  const pets = await DB.list('pets'); const byPet = Object.fromEntries(pets.map(p=>[p.id,p]));
+  const tbody = document.getElementById('h_tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  // carrega tudo
+  const all = await DB.list('hospedagens');
+  const clientes = await DB.list('clientes');
+  const byCli = Object.fromEntries(clientes.map(c => [c.id, c]));
+  const pets = await DB.list('pets');
+  const byPet = Object.fromEntries(pets.map(p => [p.id, p]));
+
+  let list = all;
+
+  // se tiver texto de busca, filtra por Tutor, Pet e Período
+  if (q) {
+    const qLower = String(q).toLowerCase();
+    list = all.filter(h => {
+      const tutorName = (byCli[h.tutorId]?.nome || '').toLowerCase();
+      const petNamesStr = (h.petIds || [])
+        .map(id => byPet[id]?.nome || '')
+        .join(', ')
+        .toLowerCase();
+
+      const dIn  = h.dataEntrada || '';
+      const dOut = h.dataSaida   || '';
+
+      // datas em ISO e em BR
+      const periodoStr = (
+        dIn + ' ' +
+        dOut + ' ' +
+        (fmtBR(dIn)  || '') + ' ' +
+        (fmtBR(dOut) || '')
+      ).toLowerCase();
+
+      const statusStr = String(h.status || '').toLowerCase();
+      const idStr     = String(h.id || '');
+
+      return (
+        tutorName.includes(qLower) ||
+        petNamesStr.includes(qLower) ||
+        periodoStr.includes(qLower) ||
+        statusStr.includes(qLower) ||
+        idStr.includes(qLower)
+      );
+    });
+  }
+
+  // monta tabela
   for (const h of list.sort((a,b)=>String(a.dataEntrada).localeCompare(String(b.dataEntrada)))) {
     const tutor = byCli[h.tutorId]?.nome || ('Tutor #'+h.tutorId);
     const petNames = (h.petIds||[]).map(id=>byPet[id]?.nome||('#'+id)).join(', ');
@@ -951,18 +995,20 @@ async function loadHosp(q){
       <td><strong>${tutor}</strong> — ${petNames}</td>
       <td>${fmtMoney(h.valor)}</td>
       <td>
-  <span class="tag">${h.status||''}</span>
-  ${h.nota && h.nota.trim() ? ' <span title="Tem observações">📝</span>' : ''}
-</td>
+        <span class="tag">${h.status||''}</span>
+        ${h.nota && h.nota.trim() ? ' <span title="Tem observações">📝</span>' : ''}
+      </td>
       <td class="flex">
         <button class="btn btn-ghost" data-edit="${h.id}">Editar</button>
         <button class="btn btn-danger" data-del="${h.id}">Excluir</button>
       </td>`;
     tbody.appendChild(tr);
   }
+
   $all('[data-edit]').forEach(b=>b.onclick=()=>editHosp(b.getAttribute('data-edit')));
   $all('[data-del]').forEach(b=>b.onclick=()=>delHosp(b.getAttribute('data-del')));
 }
+
 async function delHosp(id){
   const h = await DB.get('hospedagens', id);
   if (!confirm(`Excluir hospedagem ${h?.id}?`)) return;
@@ -1635,11 +1681,13 @@ async function renderCheckin(){
       <button class="btn btn-outline" id="ck_prev">◀ Semana anterior</button>
       <button class="btn btn-outline" id="ck_next">Próxima semana ▶</button>
       <button class="btn btn-primary" id="ck_mes_btn">📅 Ver visão mensal</button>
+      <button class="btn btn-outline" id="ck_resumo_btn">📊 Resumo de agendamentos</button>
     </div>
     <div id="pend_alert" class="alert-warn" style="display:none; margin:8px 0;">⚠️ Existem agendamentos com pagamento pendente.</div>
     <div id="ck_list"></div>
   </div>
   <div id="monthly_container"></div>`;
+
 
 // ——— MODAL (overlay) para ficha do PET + observações do agendamento ———
 if (!document.getElementById('pet_overlay')) {
@@ -1651,9 +1699,9 @@ if (!document.getElementById('pet_overlay')) {
   `;
   modal.innerHTML = `
     <div id="pet_overlay_card" style="
-      background:#0f172a; color:#e5e7eb; min-width:320px; max-width:560px; width:100%;
+      background:var(--panel); color:var(--text); min-width:320px; max-width:560px; width:100%;
       border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.3); overflow:hidden;">
-      <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 14px; background:#111827;">
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 14px; background:#ede4ff; border-bottom:1px solid #ddcdfc; color:var(--text);">
         <strong>Ficha do Pet & Observações</strong>
         <button id="pet_overlay_close" class="btn btn-ghost">Fechar</button>
       </div>
@@ -1661,6 +1709,29 @@ if (!document.getElementById('pet_overlay')) {
       <div style="padding:12px; display:flex; gap:8px; justify-content:flex-end;">
         <button id="pet_overlay_save" class="btn btn-primary">Salvar observações</button>
       </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+// ——— MODAL (overlay) para ficha do TUTOR ———
+if (!document.getElementById('tutor_overlay')) {
+  const modal = document.createElement('div');
+  modal.id = 'tutor_overlay';
+  modal.style.cssText = `
+    position:fixed; inset:0; display:none; align-items:center; justify-content:center;
+    background:rgba(0,0,0,0.35); z-index:9999; padding:16px;
+  `;
+  modal.innerHTML = `
+    <div id="tutor_overlay_card" style="
+      background:var(--panel); color:var(--text); min-width:320px; max-width:560px; width:100%;
+      border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.3); overflow:hidden;">
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 12px;
+                  background:#ede4ff; border-bottom:1px solid #ddcdfc; color:var(--text);">
+        <strong>Ficha do Tutor</strong>
+        <button id="tutor_overlay_close" class="btn btn-ghost">Fechar</button>
+      </div>
+      <div id="tutor_overlay_body" style="padding:12px; max-height:70vh; overflow:auto;"></div>
     </div>
   `;
   document.body.appendChild(modal);
@@ -1678,7 +1749,8 @@ if (!document.getElementById('pet_overlay')) {
   }
   document.getElementById('ck_prev').onclick = ()=>{ start = new Date(start.getTime()-7*86400000); paintWeek(); };
   document.getElementById('ck_next').onclick = ()=>{ start = new Date(start.getTime()+7*86400000); paintWeek(); };
-
+  document.getElementById('ck_resumo_btn').onclick = openResumoAgendamentos;
+  
   let monthlyLoaded = false;
     let repaintMonth = null;
   document.getElementById('ck_mes_btn').onclick = async ()=>{
@@ -1747,7 +1819,7 @@ function bindCheckButtons(){
     };
   });
   
-    // Abrir ficha do pet (modal)
+  // Abrir ficha do pet (modal)
   document.querySelectorAll('.pet-link').forEach(a=>{
     a.onclick = async (ev)=>{
       ev.preventDefault();
@@ -1757,7 +1829,18 @@ function bindCheckButtons(){
       await openPetCard(petId, kind, refId);
     };
   });
+
+  // Abrir ficha do tutor (modal)
+  document.querySelectorAll('.tutor-link').forEach(a=>{
+    a.onclick = async (ev)=>{
+      ev.preventDefault();
+      const tutorId = Number(a.getAttribute('data-tutor'));
+      if (!tutorId) return;
+      await openTutorCard(tutorId);
+    };
+  });
 }
+
 
 async function openPetCard(petId, kind, refId){
   const modal = document.getElementById('pet_overlay');
@@ -1838,6 +1921,343 @@ window.scrollTo(0, y);
   modal.style.display = 'flex';
 }
 
+async function openTutorCard(tutorId){
+  const modal = document.getElementById('tutor_overlay');
+  const body  = document.getElementById('tutor_overlay_body');
+  const btnClose = document.getElementById('tutor_overlay_close');
+  if (!modal || !body) return;
+
+  const tutor = await DB.get('clientes', tutorId);
+  if (!tutor) { toast('Tutor não encontrado', false); return; }
+
+  const safe = s => (s || '').toString();
+
+  body.innerHTML = `
+    <div class="mono" style="font-size:13px; line-height:1.5;">
+      <div><strong>Nome:</strong> ${safe(tutor.nome)}</div>
+      <div><strong>Telefone:</strong> ${safe(tutor.telefone)}</div>
+      <div><strong>Email:</strong> ${safe(tutor.email)}</div>
+      <div><strong>CPF:</strong> ${safe(tutor.cpf || tutor.documento || '')}</div>
+      <hr style="border:none; border-top:1px solid #1f2937; margin:8px 0;">
+      <div><strong>Cidade:</strong> ${safe(tutor.cidade)}</div>
+      <div><strong>Endereço:</strong> ${safe(tutor.endereco)}</div>
+      <div><strong>Contato veterinário:</strong> ${safe(tutor.contatoVet)}</div>
+      <div><strong>Observações:</strong> ${safe(tutor.observacao)}</div>
+    </div>
+  `;
+
+  btnClose.onclick = ()=>{ modal.style.display='none'; };
+  modal.style.display = 'flex';
+}
+
+async function openResumoAgendamentos(){
+  // Cria o overlay uma vez só
+  let modal = document.getElementById('resumo_overlay');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'resumo_overlay';
+    Object.assign(modal.style, {
+      position: 'fixed',
+      inset: '0',
+      background: 'rgba(0,0,0,0.35)',
+      display: 'none',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: '9999',
+      padding: '16px'
+    });
+
+    modal.innerHTML = `
+      <div id="resumo_overlay_card" style="background:#ffffff; color:#111827; min-width:320px; max-width:780px; width:100%; border-radius:16px; box-shadow:0 10px 30px rgba(15,23,42,0.35); overflow:hidden;">
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 14px; background:#ede4ff; border-bottom:1px solid #ddcdfc;">
+          <strong>Resumo de agendamentos</strong>
+          <button id="resumo_overlay_close" class="btn btn-ghost">Fechar</button>
+        </div>
+        <div id="resumo_overlay_body" style="padding:12px; max-height:75vh; overflow:auto;"></div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+
+  const body = document.getElementById('resumo_overlay_body');
+  const btnClose = document.getElementById('resumo_overlay_close');
+  if (!body || !btnClose) return;
+
+  const hoje = new Date();
+  const hojeISO = hoje.toISOString().slice(0, 10);
+  const mesAtualISO = hoje.toISOString().slice(0, 7); // YYYY-MM
+
+  // Monta os filtros
+  body.innerHTML = `
+    <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:10px;">
+      <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end;">
+        <div>
+          <label class="label">Mês (MM-AAAA)</label>
+          <input type="month" id="resumo_mes" class="input" value="${mesAtualISO}">
+        </div>
+        <div>
+          <label class="label">Período - De (DD-MM-AAAA)</label>
+          <input type="date" id="resumo_de" class="input">
+        </div>
+        <div>
+          <label class="label">Até (DD-MM-AAAA)</label>
+          <input type="date" id="resumo_ate" class="input">
+        </div>
+      </div>
+
+      <div style="display:flex; flex-wrap:wrap; gap:8px;">
+        <button id="resumo_hoje"   class="btn btn-outline">Hoje</button>
+        <button id="resumo_semana" class="btn btn-outline">Semana atual</button>
+        <button id="resumo_gerar"  class="btn btn-primary">Gerar resumo</button>
+      </div>
+    </div>
+
+    <div id="resumo_resultado" style="border-top:1px solid #e5e7eb; padding-top:10px; margin-top:4px; font-size:0.9rem;"></div>
+  `;
+
+  btnClose.onclick = ()=>{ modal.style.display = 'none'; };
+
+  const mesInput  = document.getElementById('resumo_mes');
+  const deInput   = document.getElementById('resumo_de');
+  const ateInput  = document.getElementById('resumo_ate');
+  const btnHoje   = document.getElementById('resumo_hoje');
+  const btnSemana = document.getElementById('resumo_semana');
+  const btnGerar  = document.getElementById('resumo_gerar');
+  const divRes    = document.getElementById('resumo_resultado');
+
+  const fmtDiaISO = (d)=> d.toISOString().slice(0,10);
+
+  btnHoje.onclick = ()=>{
+    deInput.value = hojeISO;
+    ateInput.value = hojeISO;
+    mesInput.value = hojeISO.slice(0,7);
+  };
+
+  btnSemana.onclick = ()=>{
+    const agora = new Date();
+    const dow = agora.getDay();            // 0 = domingo, 1 = segunda, ...
+    const diffSeg = (dow + 6) % 7;         // transforma em 0=segunda
+    const seg = new Date(agora);
+    seg.setDate(agora.getDate() - diffSeg);
+    const dom = new Date(seg);
+    dom.setDate(seg.getDate() + 6);
+    const deISO = fmtDiaISO(seg);
+    const ateISO = fmtDiaISO(dom);
+    deInput.value = deISO;
+    ateInput.value = ateISO;
+    mesInput.value = deISO.slice(0,7);
+  };
+
+  btnGerar.onclick = async ()=>{
+    let fromISO, toISO;
+
+    const mesVal = mesInput.value;
+    const deVal  = deInput.value;
+    const ateVal = ateInput.value;
+
+    if (mesVal) {
+      const [y,m] = mesVal.split('-').map(Number);
+      const d1 = new Date(y, m-1, 1);
+      const d2 = new Date(y, m, 0); // último dia do mês
+      fromISO = fmtDiaISO(d1);
+      toISO   = fmtDiaISO(d2);
+    } else if (deVal) {
+      fromISO = deVal;
+      toISO   = ateVal || deVal;
+    } else {
+      toast('Preencha o mês ou a data inicial', false);
+      return;
+    }
+
+    divRes.innerHTML = 'Carregando resumo...';
+    const html = await buildResumoPeriodo(fromISO, toISO);
+    divRes.innerHTML = html;
+  };
+
+  modal.style.display = 'flex';
+
+  // Já gera automaticamente para o mês atual
+  btnGerar.click();
+}
+
+async function buildResumoPeriodo(fromISO, toISO){
+  // fromISO / toISO vêm no formato YYYY-MM-DD
+  const [clientes, pets, hospedagens, creches] = await Promise.all([
+    DB.list('clientes'),
+    DB.list('pets'),
+    DB.list('hospedagens'),
+    DB.list('creches')
+  ]);
+
+  const byCli = Object.fromEntries(clientes.map(c => [c.id, c]));
+  const byPet = Object.fromEntries(pets.map(p => [p.id, p]));
+
+  // Helper para exibir DD-MM-AAAA
+  const fmtBRHifen = iso => {
+    if (!iso) return '';
+    const [y,m,d] = iso.split('-');
+    return `${d}-${m}-${y}`;
+  };
+
+  // === HOSPEDAGENS no período ===
+  const hospInRange = hospedagens.filter(h => {
+    if (!h.dataEntrada || !h.dataSaida) return false;
+    // como está tudo em YYYY-MM-DD, comparação de string funciona
+    if (h.dataSaida < fromISO) return false;
+    if (h.dataEntrada > toISO) return false;
+    return true;
+  });
+
+  // === CRECHES que têm pelo menos 1 dia no período ===
+  const crechesInRange = [];
+  for (const c of creches){
+    const diasPeriodo = (c.dias || []).filter(d => d.data >= fromISO && d.data <= toISO);
+    if (!diasPeriodo.length) continue;
+    crechesInRange.push({ ...c, diasPeriodo });
+  }
+
+  // Totais gerais
+  const setPets = new Set();
+  hospInRange.forEach(h => (h.petIds || []).forEach(id => setPets.add(id)));
+  crechesInRange.forEach(c => (c.petIds || []).forEach(id => setPets.add(id)));
+  const totalPets = setPets.size;
+
+  const somaHosp   = hospInRange.reduce((acc,h)=> acc + Number(h.valor || h.valorTotal || 0), 0);
+  const somaCreche = crechesInRange.reduce((acc,c)=> acc + Number(c.valor || 0), 0);
+
+  let html = '';
+
+  html += `<div style="margin-bottom:10px;">Período considerado: <strong>${fmtBRHifen(fromISO)}</strong> até <strong>${fmtBRHifen(toISO)}</strong></div>`;
+
+  html += `
+    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; font-size:13px;">
+      <div class="tag">Hospedagens: <strong>${hospInRange.length}</strong> — ${fmtMoney(somaHosp)}</div>
+      <div class="tag">Creches: <strong>${crechesInRange.length}</strong> — ${fmtMoney(somaCreche)}</div>
+      <div class="tag">Pets atendidos: <strong>${totalPets}</strong></div>
+    </div>
+  `;
+
+  // ===== Lista de HOSPEDAGENS =====
+  html += `<h4 style="margin:6px 0;">Hospedagens</h4>`;
+  if (!hospInRange.length){
+    html += `<div class="muted-sm">Nenhuma hospedagem neste período.</div>`;
+  } else {
+    html += `
+      <div class="list-scroll" style="max-height:220px; overflow:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Período</th>
+              <th>Tutor &amp; Pets</th>
+              <th>Valor</th>
+              <th>Status</th>
+              <th>Pagamento</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    for (const h of hospInRange){
+      const tutor = byCli[h.tutorId] || {};
+      const tutorNome = tutor.nome || `Tutor #${h.tutorId}`;
+      const nomesPets = (h.petIds || []).map(id => byPet[id]?.nome || `Pet #${id}`).join(', ');
+
+      const periodo = `${fmtBRHifen(h.dataEntrada)} → ${fmtBRHifen(h.dataSaida)}`;
+      const valorBase = Number(h.valor || h.valorTotal || 0);
+      const valor = fmtMoney(valorBase);
+      const status = h.status || '';
+      const pago = Number(h.pago || 0);
+      const faltando = Math.max(0, valorBase - pago);
+
+      const pagStr = faltando > 0
+        ? `Pendente ${fmtMoney(faltando)}`
+        : (pago > 0 ? 'Quitado' : '-');
+
+      html += `
+        <tr>
+          <td>#${h.id}</td>
+          <td>${periodo}</td>
+          <td>${tutorNome}<br><span class="muted-sm">${nomesPets}</span></td>
+          <td>${valor}</td>
+          <td>${status}</td>
+          <td>${pagStr}</td>
+        </tr>
+      `;
+    }
+
+    html += `
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  // ===== Lista de CRECHES =====
+  html += `<h4 style="margin:12px 0 6px;">Creches</h4>`;
+  if (!crechesInRange.length){
+    html += `<div class="muted-sm">Nenhuma creche neste período.</div>`;
+  } else {
+    html += `
+      <div class="list-scroll" style="max-height:220px; overflow:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Mês ref.</th>
+              <th>Tutor &amp; Pets</th>
+              <th>Dias no período</th>
+              <th>Valor</th>
+              <th>Status</th>
+              <th>Pagamento</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    for (const c of crechesInRange){
+      const tutor = byCli[c.tutorId] || {};
+      const tutorNome = tutor.nome || `Tutor #${c.tutorId}`;
+      const nomesPets = (c.petIds || []).map(id => byPet[id]?.nome || `Pet #${id}`).join(', ');
+
+      const mesRef = String(c.mesRef || '').slice(0,7); // YYYY-MM
+      const mesFmt = mesRef ? `${mesRef.slice(5,7)}-${mesRef.slice(0,4)}` : '';
+
+      const qtdDiasPeriodo = (c.diasPeriodo || []).length;
+      const valorBase = Number(c.valor || 0);
+      const valor = fmtMoney(valorBase);
+      const status = c.status || '';
+      const pago = Number(c.pago || 0);
+      const faltando = Math.max(0, valorBase - pago);
+
+      const pagStr = faltando > 0
+        ? `Pendente ${fmtMoney(faltando)}`
+        : (pago > 0 ? 'Quitado' : '-');
+
+      html += `
+        <tr>
+          <td>#${c.id}</td>
+          <td>${mesFmt}</td>
+          <td>${tutorNome}<br><span class="muted-sm">${nomesPets}</span></td>
+          <td>${qtdDiasPeriodo}</td>
+          <td>${valor}</td>
+          <td>${status}</td>
+          <td>${pagStr}</td>
+        </tr>
+      `;
+    }
+
+    html += `
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  return html;
+}
+
+
 async function agendaHtml(fromDate, toDate){
     const todayStr = ymd(new Date());
 
@@ -1884,29 +2304,40 @@ pushDay(d, 'Hospedagem', {
       }
     }
 
+    // CRECHES – um registro por dia da agenda
     for (const c of cs){
       const status = c.status || 'Agendado';
-      for (const dia of (c.dias||[])){
-        const d = dia.data;
-        if (d>=from && d<=to){
-pushDay(d, 'Creche', {
-  tutorId: c.tutorId,
-  petIds: c.petIds || [],
-  horaIn: dia.entrada || null,
-  horaOut: dia.saida || null,
-  valorTotal: c.valor || 0,
-  refId: c.id,
-  kind: 'creche',
-  status: c.status || 'Agendado',
-  pago: Number(c.pago || 0),
-  pendente: !!c.pendente,                 // 👈 vírgula aqui
-  nota: c.nota || c.observacao || '',
-  observacao: c.observacao || c.nota || '',
-});
+      const dias = c.dias || [];
+      const totalDays = dias.length;
 
+      for (let i = 0; i < dias.length; i++){
+        const dia = dias[i];
+        const d = dia.data;
+        if (d >= from && d <= to){
+          const first = (i === 0);
+          const last  = (i === dias.length - 1);
+
+          pushDay(d, 'Creche', {
+            tutorId: c.tutorId,
+            petIds: c.petIds || [],
+            horaIn: dia.entrada || null,
+            horaOut: dia.saida || null,
+            first,
+            last,
+            totalDays,
+            valorTotal: c.valor || 0,
+            refId: c.id,
+            kind: 'creche',
+            status: status,
+            pago: Number(c.pago || 0),
+            pendente: !!c.pendente,                 // 👈 vírgula aqui
+            nota: c.nota || c.observacao || '',
+            observacao: c.observacao || c.nota || '',
+          });
         }
       }
     }
+
 
     const days = []; let d = parseYMD(from);
     while (ymd(d) <= to){ days.push(ymd(d)); d = new Date(d.getTime()+86400000); }
@@ -2024,7 +2455,7 @@ pushDay(d, 'Creche', {
             ? ' <span class="note-flag" title="Observações deste agendamento">📝</span>'
             : '';
 
-out += `<div>${iconPrefix ? iconPrefix + ' ' : ''}<strong>${petNames}</strong>${noteIcon} — Tutor: <strong>${tutor}</strong>${tailExtra}${controls}</div>`;
+out += `<div>${iconPrefix ? iconPrefix + ' ' : ''}<strong>${petNames}</strong>${noteIcon} — Tutor: <a href="#" class="tutor-link" data-tutor="${tutorId}"><strong>${tutor}</strong></a>${tailExtra}${controls}</div>`;
 
         }
       }
@@ -2061,16 +2492,29 @@ out += `<div>${iconPrefix ? iconPrefix + ' ' : ''}<strong>${petNames}</strong>${
 
           const times = [r0.horaIn, r0.horaOut].filter(Boolean).join(' → ');
 
-                    // --- META DA CRECHE / POSIÇÃO DO DIA ---
+          // --- META DA CRECHE / POSIÇÃO DO DIA ---
           const meta = tutorCrecheInfo[tutorId] || { days:[], freq:'ALE' };
           const daysAll = meta.days.slice().sort();          // todos os dias dessa agenda (para esse tutor)
           const total   = daysAll.length;
 
-          const isFirst = total ? (day === daysAll[0])          : false;
-          const isLast  = total ? (day === daysAll[total - 1]) : false;
+          // Por padrão, considera o primeiro/último dia com base em todas as datas
+          let isFirst = false;
+          let isLast  = false;
+          if (total > 0) {
+            isFirst = (day === daysAll[0]);
+            isLast  = (day === daysAll[total - 1]);
+          }
+
+          // Se o registro do dia trouxer flags `first` / `last`,
+          // usamos elas com prioridade (primeiro/último dia DAQUELE agendamento)
+          if (r0 && r0.kind === 'creche' && (typeof r0.first === 'boolean' || typeof r0.last === 'boolean')) {
+            if (typeof r0.first === 'boolean') isFirst = !!r0.first;
+            if (typeof r0.last === 'boolean')  isLast  = !!r0.last;
+          }
 
           const freqStr = String(meta.freq || '').toUpperCase();   // ex: "2", "3", "ALE"
           const isRandom = (freqStr === 'ALE');
+
 
     // Mapa de semanas → quais dias caem em cada semana (semana = segunda a domingo)
     const weekMap = {};
@@ -2193,7 +2637,7 @@ const noteIcon = hasNote
   ? ' <span class="note-flag" title="Observações deste agendamento">📝</span>'
   : '';
 
-out += `<div>${iconPrefix ? iconPrefix+' ' : ''}<strong>${petNames}</strong>${noteIcon} — Tutor: <strong>${tutor}</strong>${times?` — <span class="muted-sm">${times}</span>`:''}${suffix}${pendStr}${controls}</div>`;
+out += `<div>${iconPrefix ? iconPrefix+' ' : ''}<strong>${petNames}</strong>${noteIcon} — Tutor: <a href="#" class="tutor-link" data-tutor="${tutorId}"><strong>${tutor}</strong></a>${times?` — <span class="muted-sm">${times}</span>`:''}${suffix}${pendStr}${controls}</div>`;
 
         }
       }
