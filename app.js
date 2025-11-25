@@ -2027,12 +2027,34 @@ async function openResumoAgendamentos(){
 
   const fmtDiaISO = (d)=> d.toISOString().slice(0,10);
 
-  btnHoje.onclick = ()=>{
-    deInput.value = hojeISO;
-    ateInput.value = hojeISO;
-    mesInput.value = hojeISO.slice(0,7);
+  // Sempre que mudar o MÊS, atualiza o período De/Até para o mês inteiro
+  mesInput.onchange = ()=>{
+    const mesVal = mesInput.value; // YYYY-MM
+    if (!mesVal){
+      // se apagar o mês, limpa o período
+      deInput.value  = '';
+      ateInput.value = '';
+      return;
+    }
+
+    const [y, m] = mesVal.split('-').map(Number);
+    const d1 = new Date(y, m - 1, 1);   // primeiro dia
+    const d2 = new Date(y, m, 0);       // último dia do mês
+
+    deInput.value  = fmtDiaISO(d1);
+    ateInput.value = fmtDiaISO(d2);
   };
 
+  // Botão HOJE
+btnHoje.onclick = ()=>{
+  deInput.value  = hojeISO;
+  ateInput.value = hojeISO;
+  // Limpa o mês para permitir escolher novamente depois
+  mesInput.value = '';
+};
+
+
+  // Botão SEMANA ATUAL
   btnSemana.onclick = ()=>{
     const agora = new Date();
     const dow = agora.getDay();            // 0 = domingo, 1 = segunda, ...
@@ -2043,11 +2065,13 @@ async function openResumoAgendamentos(){
     dom.setDate(seg.getDate() + 6);
     const deISO = fmtDiaISO(seg);
     const ateISO = fmtDiaISO(dom);
-    deInput.value = deISO;
+    deInput.value  = deISO;
     ateInput.value = ateISO;
-    mesInput.value = deISO.slice(0,7);
+	// Limpa o mês para você poder selecionar de novo
+    mesInput.value = '';
   };
 
+  // Botão GERAR RESUMO
   btnGerar.onclick = async ()=>{
     let fromISO, toISO;
 
@@ -2055,15 +2079,20 @@ async function openResumoAgendamentos(){
     const deVal  = deInput.value;
     const ateVal = ateInput.value;
 
-    if (mesVal) {
-      const [y,m] = mesVal.split('-').map(Number);
-      const d1 = new Date(y, m-1, 1);
+    // 1) SE tiver período (De/Até), ele manda nesse filtro
+    if (deVal) {
+      fromISO = deVal;
+      toISO   = ateVal || deVal;
+
+    // 2) Se não tiver período, mas tiver MÊS, usa o mês inteiro
+    } else if (mesVal) {
+      const [y, m] = mesVal.split('-').map(Number);
+      const d1 = new Date(y, m - 1, 1);
       const d2 = new Date(y, m, 0); // último dia do mês
       fromISO = fmtDiaISO(d1);
       toISO   = fmtDiaISO(d2);
-    } else if (deVal) {
-      fromISO = deVal;
-      toISO   = ateVal || deVal;
+
+    // 3) Nenhum filtro preenchido
     } else {
       toast('Preencha o mês ou a data inicial', false);
       return;
@@ -2074,10 +2103,15 @@ async function openResumoAgendamentos(){
     divRes.innerHTML = html;
   };
 
+  // Quando abrir o modal:
+  // - garante que o período De/Até está alinhado com o mês atual
+  mesInput.onchange();
+
   modal.style.display = 'flex';
 
   // Já gera automaticamente para o mês atual
   btnGerar.click();
+
 }
 
 async function buildResumoPeriodo(fromISO, toISO){
@@ -2144,7 +2178,15 @@ async function buildResumoPeriodo(fromISO, toISO){
   } else {
     html += `
       <div class="list-scroll" style="max-height:220px; overflow:auto;">
-        <table>
+        <table style="width:100%; border-collapse:collapse;">
+          <colgroup>
+            <col style="width:1%;">   <!-- ID -->
+            <col style="width:22%;">  <!-- Período -->
+            <col style="width:25%;">  <!-- Tutor & Pets -->
+            <col style="width:12%;">  <!-- Valor -->
+            <col style="width:12%;">  <!-- Status -->
+            <col style="width:10%;">  <!-- Pagamento -->
+          </colgroup>
           <thead>
             <tr>
               <th>ID</th>
@@ -2158,7 +2200,13 @@ async function buildResumoPeriodo(fromISO, toISO){
           <tbody>
     `;
 
-    for (const h of hospInRange){
+    const hospSorted = [...hospInRange].sort((a, b) => {
+      const da = String(a.dataEntrada || '');
+      const db = String(b.dataEntrada || '');
+      return da.localeCompare(db);  // ordem crescente por data de entrada
+    });
+
+    for (const h of hospSorted){
       const tutor = byCli[h.tutorId] || {};
       const tutorNome = tutor.nome || `Tutor #${h.tutorId}`;
       const nomesPets = (h.petIds || []).map(id => byPet[id]?.nome || `Pet #${id}`).join(', ');
@@ -2166,7 +2214,16 @@ async function buildResumoPeriodo(fromISO, toISO){
       const periodo = `${fmtBRHifen(h.dataEntrada)} → ${fmtBRHifen(h.dataSaida)}`;
       const valorBase = Number(h.valor || h.valorTotal || 0);
       const valor = fmtMoney(valorBase);
-      const status = h.status || '';
+
+      // Status (checkin / checkout / concluído) + ícone
+      const status = (h.status || '').toString();
+      const statusIcon =
+        status === 'checkin'
+          ? '✔️ '
+          : (status === 'checkout' || status === 'Concluído')
+            ? '❌ '
+            : '';
+
       const pago = Number(h.pago || 0);
       const faltando = Math.max(0, valorBase - pago);
 
@@ -2174,17 +2231,21 @@ async function buildResumoPeriodo(fromISO, toISO){
         ? `Pendente ${fmtMoney(faltando)}`
         : (pago > 0 ? 'Quitado' : '-');
 
+      // Ícone de pendência no pagamento
+      const pagIcon = faltando > 0 ? '⚠️ ' : '';
+
       html += `
         <tr>
           <td>#${h.id}</td>
           <td>${periodo}</td>
           <td>${tutorNome}<br><span class="muted-sm">${nomesPets}</span></td>
           <td>${valor}</td>
-          <td>${status}</td>
-          <td>${pagStr}</td>
+          <td>${statusIcon}${status}</td>
+          <td>${pagIcon}${pagStr}</td>
         </tr>
       `;
     }
+
 
     html += `
           </tbody>
@@ -2200,13 +2261,22 @@ async function buildResumoPeriodo(fromISO, toISO){
   } else {
     html += `
       <div class="list-scroll" style="max-height:220px; overflow:auto;">
-        <table>
+        <table style="width:100%; border-collapse:collapse;">
+          <colgroup>
+            <col style="width:1%;">   <!-- ID -->
+            <col style="width:22%;">  <!-- Período -->
+            <col style="width:15%;">  <!-- Tutor & Pets -->
+			<col style="width:10%;">  <!-- Dias por Semana -->
+            <col style="width:12%;">  <!-- Valor -->
+            <col style="width:12%;">  <!-- Status -->
+            <col style="width:10%;">  <!-- Pagamento -->
+          </colgroup>
           <thead>
             <tr>
               <th>ID</th>
-              <th>Mês ref.</th>
+              <th>Período</th>
               <th>Tutor &amp; Pets</th>
-              <th>Dias no período</th>
+			  <th>Dias por Semana</th>
               <th>Valor</th>
               <th>Status</th>
               <th>Pagamento</th>
@@ -2214,35 +2284,85 @@ async function buildResumoPeriodo(fromISO, toISO){
           </thead>
           <tbody>
     `;
+	
+  const crechesSorted = [...crechesInRange].sort((a, b) => {
+    const diasA = (a.dias || []).map(d => String(d.data || '')).filter(Boolean).sort();
+    const diasB = (b.dias || []).map(d => String(d.data || '')).filter(Boolean).sort();
+    const aFirst = diasA[0] || '';
+    const bFirst = diasB[0] || '';
+    return String(aFirst).localeCompare(String(bFirst));
+  });
 
-    for (const c of crechesInRange){
+
+    for (const c of crechesSorted){
       const tutor = byCli[c.tutorId] || {};
       const tutorNome = tutor.nome || `Tutor #${c.tutorId}`;
       const nomesPets = (c.petIds || []).map(id => byPet[id]?.nome || `Pet #${id}`).join(', ');
 
-      const mesRef = String(c.mesRef || '').slice(0,7); // YYYY-MM
-      const mesFmt = mesRef ? `${mesRef.slice(5,7)}-${mesRef.slice(0,4)}` : '';
+    // TODOS os dias da agenda de creche (para mostrar período global + lista completa)
+    const diasAllArr = (c.dias || [])
+      .map(d => String(d.data || ''))
+      .filter(Boolean)
+      .sort();
 
-      const qtdDiasPeriodo = (c.diasPeriodo || []).length;
+    // Apenas os dias que caem dentro do período filtrado (para "Dias por semana")
+    const diasPeriodoArr = (c.diasPeriodo || [])
+      .map(d => String(d.data || ''))
+      .filter(Boolean)
+      .sort();
+
+    const firstAllIso = diasAllArr[0] || '';
+    const lastAllIso  = diasAllArr[diasAllArr.length - 1] || firstAllIso;
+
+    const periodoStr = firstAllIso
+      ? `${fmtBRHifen(firstAllIso)} → ${fmtBRHifen(lastAllIso)}`
+      : '';
+
+    const diasLista = diasAllArr
+      .map(iso => {
+        const partes = iso.split('-');
+        const diaNum = partes[2] ? Number(partes[2]) : '';
+        return diaNum ? String(diaNum) : '';
+      })
+      .filter(Boolean)
+      .join('-');
+
+    const qtdDiasPeriodo = diasPeriodoArr.length;
       const valorBase = Number(c.valor || 0);
-      const valor = fmtMoney(valorBase);
-      const status = c.status || '';
-      const pago = Number(c.pago || 0);
+      const valor     = fmtMoney(valorBase);
+
+      // Status com ícone (✔️ para checkin, ❌ para checkout/Concluído)
+      const statusRaw  = c.status || 'Agendado';
+      const statusText = statusRaw.toString();
+      const statusIcon =
+        statusText === 'checkin'
+          ? '✔️ '
+          : (statusText === 'checkout' || statusText === 'Concluído')
+            ? '❌ '
+            : '';
+
+      const pago     = Number(c.pago || 0);
       const faltando = Math.max(0, valorBase - pago);
 
+      // Pagamento com ícone de pendente (⚠️) quando faltar valor
       const pagStr = faltando > 0
         ? `Pendente ${fmtMoney(faltando)}`
         : (pago > 0 ? 'Quitado' : '-');
 
+      const pagIcon = faltando > 0 ? '⚠️ ' : '';
+
       html += `
         <tr>
           <td>#${c.id}</td>
-          <td>${mesFmt}</td>
+          <td>
+            ${periodoStr}
+            ${diasLista ? `<br><span class="muted-sm">(${diasLista})</span>` : ''}
+          </td>
           <td>${tutorNome}<br><span class="muted-sm">${nomesPets}</span></td>
           <td>${qtdDiasPeriodo}</td>
           <td>${valor}</td>
-          <td>${status}</td>
-          <td>${pagStr}</td>
+          <td>${statusIcon}${statusText}</td>
+          <td>${pagIcon}${pagStr}</td>
         </tr>
       `;
     }
