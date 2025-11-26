@@ -2266,9 +2266,9 @@ async function buildResumoPeriodo(fromISO, toISO){
             <col style="width:1%;">   <!-- ID -->
             <col style="width:14%;">  <!-- Período -->
             <col style="width:17%;">  <!-- Tutor & Pets -->
-			<col style="width:3%;">  <!-- Dias por Semana -->
+			<col style="width:2%;">  <!-- Dias por Semana -->
             <col style="width:12%;">  <!-- Valor -->
-            <col style="width:12%;">  <!-- Status -->
+            <col style="width:13%;">  <!-- Status -->
             <col style="width:10%;">  <!-- Pagamento -->
           </colgroup>
           <thead>
