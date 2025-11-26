@@ -2261,12 +2261,12 @@ async function buildResumoPeriodo(fromISO, toISO){
   } else {
     html += `
       <div class="list-scroll" style="max-height:220px; overflow:auto;">
-        <table style="width:100%; border-collapse:collapse;">
+        <table class="resumo-creche-table" style="width:100%; border-collapse:collapse;">
           <colgroup>
             <col style="width:1%;">   <!-- ID -->
             <col style="width:14%;">  <!-- Período -->
             <col style="width:17%;">  <!-- Tutor & Pets -->
-			<col style="width:10%;">  <!-- Dias por Semana -->
+			<col style="width:8%;">  <!-- Dias por Semana -->
             <col style="width:12%;">  <!-- Valor -->
             <col style="width:12%;">  <!-- Status -->
             <col style="width:10%;">  <!-- Pagamento -->
