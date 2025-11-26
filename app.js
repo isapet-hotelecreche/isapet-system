@@ -2181,7 +2181,7 @@ async function buildResumoPeriodo(fromISO, toISO){
         <table style="width:100%; border-collapse:collapse;">
           <colgroup>
             <col style="width:1%;">   <!-- ID -->
-            <col style="width:22%;">  <!-- Período -->
+            <col style="width:14%;">  <!-- Período -->
             <col style="width:25%;">  <!-- Tutor & Pets -->
             <col style="width:12%;">  <!-- Valor -->
             <col style="width:12%;">  <!-- Status -->
@@ -2264,8 +2264,8 @@ async function buildResumoPeriodo(fromISO, toISO){
         <table style="width:100%; border-collapse:collapse;">
           <colgroup>
             <col style="width:1%;">   <!-- ID -->
-            <col style="width:22%;">  <!-- Período -->
-            <col style="width:15%;">  <!-- Tutor & Pets -->
+            <col style="width:14%;">  <!-- Período -->
+            <col style="width:17%;">  <!-- Tutor & Pets -->
 			<col style="width:10%;">  <!-- Dias por Semana -->
             <col style="width:12%;">  <!-- Valor -->
             <col style="width:12%;">  <!-- Status -->
