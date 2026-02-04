@@ -12,6 +12,408 @@ function betweenDates(inicio, fim){
   for(; d<=end; d=new Date(d.getTime()+86400000)) dates.push(ymd(d));
   return dates;
 }
+
+// ==== Importação de contratos (bloco ISA_PET_DADOS) ====
+
+// Converte o campo "Idade" do formulário em data de nascimento (YYYY-MM-DD)
+// - Se for "10" ou "10 anos" -> 01/01/(anoAtual - 10)
+// - Se for "20/02/2014" ou "20-02-2014" -> 2014-02-20
+// - Se for "2014-02-20" -> mantém como está (ajusta zeros à esquerda)
+function parseNascimentoFromIdade(idadeStr){
+  const s = (idadeStr || '').trim();
+  if (!s) return '';
+
+  // Formato dd/mm/aaaa ou dd-mm-aaaa
+  let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (m){
+    let dia   = m[1].padStart(2, '0');
+    let mes   = m[2].padStart(2, '0');
+    let ano   = m[3];
+    if (ano.length === 2){
+      // Regra simples: 00–49 => 2000+, 50–99 => 1900+
+      const n = parseInt(ano, 10);
+      ano = (n >= 50 ? '19' : '20') + ano;
+    }
+    return `${ano}-${mes}-${dia}`;
+  }
+
+  // Formato ISO já (yyyy-mm-dd)
+  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (m){
+    const ano  = m[1];
+    const mes  = m[2].padStart(2, '0');
+    const dia  = m[3].padStart(2, '0');
+    return `${ano}-${mes}-${dia}`;
+  }
+
+  // Caso mais comum: só número de anos ("10", "10 anos", etc.)
+  const mAno = s.match(/(\d{1,2})/);
+  if (!mAno) return '';
+
+  const anos = parseInt(mAno[1], 10);
+  if (!Number.isFinite(anos) || anos < 0 || anos > 40){
+    return '';
+  }
+
+  const hoje = new Date();
+  const anoNasc = hoje.getFullYear() - anos;
+  return `${anoNasc}-01-01`;
+}
+
+// Lê o bloco ISA_PET_DADOS e devolve { tutor, pets }
+// Lê o bloco ISA_PET_DADOS e devolve { tutor, pets }
+function parseIsaPetDados(raw){
+  if (!raw) return null;
+
+  // Se o usuário colar o contrato inteiro, tenta isolar só o bloco
+  const m = raw.match(/ISA_PET_DADOS([\s\S]*?)FIM/);
+  let text = raw;
+  if (m) text = m[1];
+
+  // Normaliza quebras de linha:
+  // - remove \r
+  // - qualquer \n que NÃO seja seguido de TUTOR| ou PET| vira espaço
+  text = text.replace(/\r/g, '');
+  text = text.replace(/\n(?!\s*(TUTOR|PET|HOSPEDAGEM)\|)/g, ' ');
+
+  const linhas = text
+    .split('\n')
+    .map(l => l.trim())
+    .filter(l => l && !l.startsWith('===='));
+
+  let tutor = null;
+  const pets = [];
+  let hospedagem = null;
+
+  const normalize = (s) => (s || '')
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+const isNegacaoLivre = (txt) => {
+  const t = normalize((txt || '').trim());
+  if (!t) return true;
+
+  const clean = t
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // Respostas comuns de "não tem"
+  const negs = new Set([
+    'nao', 'não', 'n', 'nn',
+    'nenhum', 'nenhuma', 'nada',
+    'sem', 'sem alergia', 'sem alergias',
+    'sem doenca', 'sem doencas', 'sem doenças',
+    'nao tem', 'não tem',
+    'nao possui', 'não possui',
+    'nao apresenta', 'não apresenta'
+  ]);
+
+  if (negs.has(clean)) return true;
+
+  if (clean.startsWith('nao tem') || clean.startsWith('não tem')) return true;
+  if (clean.startsWith('sem ')) return true;
+
+  return false;
+};
+
+  for (const linha of linhas){
+    const partes = linha.split('|');
+    if (!partes.length) continue;
+
+    const tipo = (partes[0] || '').trim().toUpperCase();
+
+    // TUTOR|Nome|CPF|Endereço|CEP|Telefone|Email|Vet
+    if (tipo === 'TUTOR'){
+      tutor = {
+        nome:        (partes[1] || '').trim(),
+        cpf:         (partes[2] || '').trim(),
+        documento:   (partes[2] || '').trim(),
+        endereco:    (partes[3] || '').trim(),
+        cep:         (partes[4] || '').trim(),
+        telefone:    (partes[5] || '').trim(),
+        email:       (partes[6] || '').trim(),
+        contatoVet:  (partes[7] || '').trim(),
+        cidade:      '',
+        observacao:  '', // sem "Importado de contrato"
+      };
+    }
+
+    // PET|Nome|Espécie|Raça|Idade|Sexo|Peso|Castrado?|Alergias?|Doenças?
+    else if (tipo === 'PET'){
+      const nome = (partes[1] || '').trim();
+      if (!nome) continue; // ignora pets vazios
+
+      const especie     = (partes[2] || '').trim();
+      const raca        = (partes[3] || '').trim();
+      const idadeStr    = (partes[4] || '').trim();
+      const sexoRaw     = (partes[5] || '').trim();
+      const peso        = (partes[6] || '').trim(); // guardado pra uso futuro, se quiser
+const castradoStr = (partes[7] || '').trim();
+
+// === Suporta 2 formatos de linha PET ===
+// FORMATO A (antigo):
+// PET|Nome|Espécie|Raça|Idade|Sexo|Peso|Castrado?|AlergiasTexto?|DoençasTexto?
+//
+// FORMATO B (novo - com flags + textos):
+// PET|Nome|Espécie|Raça|Idade|Sexo|Peso|Castrado?|Alergias(Sim/Nao)|Doencas(Sim/Nao)|Cuidados(Sim/Nao)|AlergiasTexto|DoencasTexto|CuidadosTexto
+
+const v8  = (partes[8]  || '').trim();
+const v9  = (partes[9]  || '').trim();
+const v10 = (partes[10] || '').trim();
+const v11 = (partes[11] || '').trim();
+const v12 = (partes[12] || '').trim();
+const v13 = (partes[13] || '').trim();
+
+const isSimNao = (s) => {
+  const n = normalize(s);
+  return n === 'sim' || n === 'nao' || n === 'não';
+};
+
+let alergiasFlag = false, doencasFlag = false, cuidadosFlag = false;
+let alergiasTexto = '', doencasTexto = '', cuidadosTexto = '';
+
+// Se parecer o formato novo (campos 8 e 9 como Sim/Não), usa o novo
+if (isSimNao(v8) && isSimNao(v9)) {
+  alergiasFlag  = normalize(v8).includes('sim');
+  doencasFlag   = normalize(v9).includes('sim');
+  cuidadosFlag  = normalize(v10).includes('sim');
+
+  alergiasTexto = v11;
+  doencasTexto  = v12;
+  cuidadosTexto = v13;
+} else {
+  // Formato antigo: textos diretos
+  // PET|...|Castrado?|AlergiasTexto?|DoencasTexto?|CuidadosTexto?
+  // Pode vir com pipes extras vazios (ex: Sim|||texto), então o "Cuidados" pode cair em [11], [12]...
+  alergiasTexto = v8;
+  doencasTexto  = v9;
+
+  // pega tudo a partir do índice 10 como "Cuidados" (se vier deslocado, ainda assim entra)
+  const resto = (partes.slice(10).join('|') || '').trim();
+  cuidadosTexto = resto;
+
+  alergiasFlag  = !!alergiasTexto;
+  doencasFlag   = !!doencasTexto;
+  cuidadosFlag  = !!cuidadosTexto;
+}
+
+
+const nascimento = parseNascimentoFromIdade(idadeStr);
+
+// Conversão Macho/Fêmea → M/F (pro select do sistema)
+let sexo = '';
+const sxNorm = normalize(sexoRaw);
+if (sxNorm.startsWith('m')) sexo = 'M';
+else if (sxNorm.startsWith('f')) sexo = 'F';
+else sexo = ''; // deixa vazio se vier algo estranho
+
+const castradoBool = normalize(castradoStr).includes('sim');
+
+// === FILTRO: se cliente escreveu "não/nao/nenhuma/sem..." então ignora ===
+if (isNegacaoLivre(alergiasTexto)) alergiasTexto = '';
+if (isNegacaoLivre(doencasTexto))  doencasTexto  = '';
+if (isNegacaoLivre(cuidadosTexto)) cuidadosTexto = '';
+
+// Se o texto ficou vazio, garante flag = false.
+// Se veio texto de verdade, garante flag = true (mesmo que o cliente tenha marcado errado no form).
+alergiasFlag = !!alergiasTexto;
+doencasFlag  = !!doencasTexto;
+cuidadosFlag = !!cuidadosTexto;
+
+pets.push({
+  tutorId:       null, // vamos preencher depois
+  nome,
+  especie,
+  raca,
+  sexo,
+  nascimento,
+  doencasFlag,
+  doencasTexto,
+  alergiasFlag,
+  alergiasTexto,
+  cuidadosFlag,
+  cuidadosTexto,
+  castrado:      castradoBool,
+});
+    }
+	
+    else if (tipo === 'HOSPEDAGEM') {
+      // HOSPEDAGEM|02/02/2026|18:00:00|03/02/2026|19:00:00|R$ 180|Observações...
+      const dataEntradaRaw = (partes[1] || '').trim();
+      const horaEntradaRaw = (partes[2] || '').trim();
+      const dataSaidaRaw   = (partes[3] || '').trim();
+      const horaSaidaRaw   = (partes[4] || '').trim();
+      const valorRaw       = (partes[5] || '').trim();
+
+      // Observação pode ter '|' (raro) e pode ter sido “juntada” com espaços por causa do replace acima
+      const obsRaw = (partes.slice(6).join('|') || '').trim();
+
+      const toISODateAny = (s) => {
+        const v = (s || '').trim();
+        if (!v) return '';
+        // dd/mm/aaaa
+        let m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+        // yyyy-mm-dd
+        m = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+        if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+        return '';
+      };
+
+      const onlyTime = (s) => {
+        const v = (s || '').trim();
+        if (!v) return '';
+        // aceita HH:MM ou HH:MM:SS
+        let m = v.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+        if (!m) return '';
+        const hh = m[1].padStart(2,'0');
+        const mm = m[2];
+        return `${hh}:${mm}`;
+      };
+
+      const parseMoneyBR = (s) => {
+        const v = (s || '').toString().replace(/[^\d,.-]/g, '').trim();
+        if (!v) return 0;
+        // Se tiver vírgula, assume decimal BR
+        if (v.includes(',')) {
+          const n = Number(v.replace(/\./g,'').replace(',', '.'));
+          return Number.isFinite(n) ? n : 0;
+        }
+        const n = Number(v);
+        return Number.isFinite(n) ? n : 0;
+      };
+
+      // garante ISO nas datas (o sistema funciona melhor assim)
+      const dataEntradaISO = toISODateAny(dataEntradaRaw);
+      const dataSaidaISO   = toISODateAny(dataSaidaRaw);
+
+      // salva em parsed.hospedagem
+      // (a função hoje retorna { tutor, pets }, vamos ampliar para incluir hospedagem)
+      if (!this.__isaTmp) this.__isaTmp = {};
+      this.__isaTmp.hospedagem = {
+        dataEntrada: dataEntradaISO,
+        horaEntrada: onlyTime(horaEntradaRaw),
+        dataSaida:   dataSaidaISO,
+        horaSaida:   onlyTime(horaSaidaRaw),
+        valor:       parseMoneyBR(valorRaw),
+        observacao:  obsRaw,
+      };
+    }
+
+  }
+
+// usa a hospedagem que já foi montada no parse (ou, se você estiver usando __isaTmp, reaproveita)
+hospedagem = hospedagem || ((this.__isaTmp && this.__isaTmp.hospedagem) ? this.__isaTmp.hospedagem : null);
+if (this.__isaTmp) this.__isaTmp = null;
+return { tutor, pets, hospedagem };
+
+}
+
+// ==== Importação segura: evitar duplicados e confirmar atualizações ====
+
+function normDigits(v){
+  return (v || '').toString().replace(/\D/g, '');
+}
+function normText(v){
+  return (v || '')
+    .toString()
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+// Mostra diferenças campo a campo: "campo: 'antes' -> 'depois'"
+function diffFields(oldObj, newObj, fields){
+  const diffs = [];
+  for (const f of fields){
+    const a = (oldObj?.[f] ?? '').toString().trim();
+    const b = (newObj?.[f] ?? '').toString().trim();
+
+    // regra: só considera mudança se o NOVO vier preenchido e for diferente
+    if (b && a !== b){
+      diffs.push({ field: f, before: a, after: b });
+    }
+  }
+  return diffs;
+}
+
+function prettyFieldName(f){
+  const map = {
+    nome: 'Nome',
+    cpf: 'CPF',
+    documento: 'CPF',
+    telefone: 'Telefone',
+    email: 'E-mail',
+    cep: 'CEP',
+    cidade: 'Cidade',
+    endereco: 'Endereço',
+    contatoVet: 'Contato veterinário',
+    observacao: 'Observação',
+
+    // pet
+    especie: 'Espécie',
+    raca: 'Raça',
+    sexo: 'Sexo',
+    nascimento: 'Nascimento',
+    castrado: 'Castrado',
+    doencasTexto: 'Doenças',
+    alergiasTexto: 'Alergias',
+    cuidadosTexto: 'Cuidados',
+  };
+  return map[f] || f;
+}
+
+function formatDiffBlock(title, diffs){
+  if (!diffs.length) return `${title}\n(sem alterações)\n`;
+  let s = `${title}\n`;
+  for (const d of diffs){
+    s += `- ${prettyFieldName(d.field)}: "${d.before || '-'}"  →  "${d.after}"\n`;
+  }
+  return s + '\n';
+}
+
+// Encontra tutor existente por CPF (prioridade) ou por nome+telefone (fallback)
+async function findExistingTutor(tutorData){
+  const all = await DB.list('clientes');
+
+  const cpfNew = normDigits(tutorData?.cpf || tutorData?.documento);
+  if (cpfNew){
+    const byCpf = all.find(c => normDigits(c.cpf || c.documento) === cpfNew);
+    if (byCpf) return byCpf;
+  }
+
+  const nomeNew = normText(tutorData?.nome);
+  const telNew = normDigits(tutorData?.telefone);
+  if (nomeNew && telNew){
+    const byNomeTel = all.find(c =>
+      normText(c.nome) === nomeNew && normDigits(c.telefone) === telNew
+    );
+    if (byNomeTel) return byNomeTel;
+  }
+
+  return null;
+}
+
+// Encontra pet existente do tutor pelo "nome + espécie + raça" (bem prático pra evitar duplicar)
+async function findExistingPetForTutor(tutorId, petData){
+  const pets = await DB.list('pets');
+  const alvoNome = normText(petData?.nome);
+  const alvoEsp = normText(petData?.especie);
+  const alvoRaca = normText(petData?.raca);
+
+  return pets.find(p =>
+    Number(p.tutorId) === Number(tutorId) &&
+    normText(p.nome) === alvoNome &&
+    normText(p.especie) === alvoEsp &&
+    normText(p.raca) === alvoRaca
+  ) || null;
+}
+
+
 // ==== Máscaras e validação (telefone e CPF) ====
 
 // Formata telefone brasileiro enquanto digita
@@ -419,13 +821,27 @@ async function delCliente(id){
 // ==== PETS ====
 async function renderPets(){
   const clientes = await DB.list('clientes');
-  const options = clientes.map(c=>({ value:c.id, label: `${c.nome}` }));
+  const clientesOrdenados = clientes.slice().sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
   const view = document.getElementById('view');
   view.innerHTML = `
   <div class="grid">
     <div class="panel">
       <h2>Novo Pet</h2>
-      ${Select('Tutor', 'pet_tutor', [{value:'',label:'Selecione...'}, ...options])}
+<div class="field" style="position:relative;">
+  <label for="pet_tutor_input">Tutor</label>
+  <input id="pet_tutor_input" placeholder="Digite para buscar..." autocomplete="off" />
+  <div id="pet_tutor_dropdown" class="dropdown-list" style="
+    position:absolute;
+    z-index:999;
+    background:white;
+    border:1px solid #ccc;
+    border-radius:6px;
+    width:100%;
+    max-height:180px;
+    overflow-y:auto;
+    display:none;
+  "></div>
+</div>
       ${Input('Nome', 'pet_nome')}
       <div class="row">
         ${Select('Espécie', 'pet_especie_sel', [
@@ -483,6 +899,61 @@ async function renderPets(){
       </tr></thead><tbody id="pet_tbody"></tbody></table></div>
     </div>
   </div>`;
+
+  // ==== Tutor com busca por nome (Pets) ====
+const tutorInput = document.getElementById('pet_tutor_input');
+const dropdown = document.getElementById('pet_tutor_dropdown');
+
+// guardamos selecionado
+let selectedTutorId = null;
+
+// função para renderizar a lista
+function showTutorsFiltered(filtro='') {
+  dropdown.innerHTML = '';
+  filtro = filtro.toLowerCase();
+
+  const filtrados = clientesOrdenados.filter(c => 
+    c.nome.toLowerCase().includes(filtro)
+  );
+
+  filtrados.forEach(c => {
+    const opt = document.createElement('div');
+    opt.textContent = c.nome;
+    opt.style.padding = '6px 10px';
+    opt.style.cursor = 'pointer';
+
+    opt.onclick = () => {
+      tutorInput.value = c.nome;
+      selectedTutorId = c.id;
+      dropdown.style.display = 'none';
+    };
+
+    opt.onmouseenter = () => opt.style.background = '#eee';
+    opt.onmouseleave = () => opt.style.background = '#fff';
+
+    dropdown.appendChild(opt);
+  });
+
+  dropdown.style.display = filtrados.length ? 'block' : 'none';
+}
+
+// quando digitar → filtra
+tutorInput.addEventListener('input', () => {
+  selectedTutorId = null; // reset
+  showTutorsFiltered(tutorInput.value.trim());
+});
+
+// se focar sem nada → mostra todos
+tutorInput.addEventListener('focus', () => {
+  showTutorsFiltered(tutorInput.value.trim());
+});
+
+// clique fora → fecha dropdown
+document.addEventListener('click', (e) => {
+  if (!tutorInput.contains(e.target) && !dropdown.contains(e.target)) {
+    dropdown.style.display = 'none';
+  }
+});
 
   // ==== Raças por espécie (para o campo com datalist) ====
   const racasCachorro = [
@@ -583,7 +1054,7 @@ async function renderPets(){
     const get = id => document.getElementById(id);
 
     // 1) Tutor obrigatório
-    const tutorId = Number(get('pet_tutor').value);
+    const tutorId = Number(selectedTutorId);
     if (!tutorId) {
       toast('O campo Tutor não pode ficar vazio', false);
       get('pet_tutor').focus();
@@ -674,8 +1145,15 @@ async function loadPets(q){
   $all('[data-del]').forEach(b=>b.onclick=()=>delPet(b.getAttribute('data-del')));
 }
 async function editPet(id){
+	id = Number(id);
   const p = await DB.get('pets', id); if (!p) return toast('Pet não encontrado', false);
-  document.getElementById('pet_tutor').value = p.tutorId||'';
+  // Preenche o tutor no campo novo (input com busca)
+const tutor = await DB.get('clientes', p.tutorId);
+document.getElementById('pet_tutor_input').value = tutor?.nome || '';
+// Atualiza o ID selecionado (mesma lógica do dropdown)
+try { selectedTutorId = p.tutorId; } catch (e) {}
+const dd = document.getElementById('pet_tutor_dropdown');
+if (dd) dd.style.display = 'none';
   document.getElementById('pet_nome').value = p.nome||'';
   const known=['Cachorro','Gato'];
   if (known.includes(p.especie)) { document.getElementById('pet_especie_sel').value = p.especie; document.getElementById('pet_especie_outro').value=''; }
@@ -701,7 +1179,7 @@ async function editPet(id){
     p.tutorId = Number(get('pet_tutor').value);
     if (!p.tutorId) {
       toast('O campo Tutor não pode ficar vazio', false);
-      get('pet_tutor').focus();
+      get('pet_tutor_input').focus();
       return;
     }
 
@@ -769,6 +1247,7 @@ async function editPet(id){
 }
 
 async function delPet(id){
+	id = Number(id);
   const p=await DB.get('pets', id);
   if (!confirm(`Excluir pet ${p?.nome||id}?`)) return;
   await DB.delete('pets', id);
@@ -776,9 +1255,12 @@ async function delPet(id){
   toast('Pet excluído'); loadPets('');
 }
 
+let selectedHospTutorId = null; // tutor selecionado na tela de HOSPEDAGEM
+
 // ==== HOSPEDAGEM ====
 async function renderHosp(){
   const clientes = await DB.list('clientes');
+  const clientesOrdenados = clientes.slice().sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
   const pets = await DB.list('pets');
   const byTutor = pets.reduce((acc,p)=>{ (acc[p.tutorId]=acc[p.tutorId]||[]).push(p); return acc; },{});
   const view = document.getElementById('view');
@@ -786,7 +1268,21 @@ async function renderHosp(){
   <div class="grid">
     <div class="panel">
       <h2>Nova Hospedagem</h2>
-      ${Select('Tutor', 'h_tutor', [{value:'',label:'Selecione...'}, ...clientes.map(c=>({value:c.id,label:`${c.nome}`}))])}
+<div class="field" style="position:relative;">
+  <label for="h_tutor_input">Tutor</label>
+  <input id="h_tutor_input" placeholder="Digite para buscar..." autocomplete="off" />
+  <div id="h_tutor_dropdown" class="dropdown-list" style="
+    position:absolute;
+    z-index:999;
+    background:white;
+    border:1px solid #ccc;
+    border-radius:6px;
+    width:100%;
+    max-height:180px;
+    overflow-y:auto;
+    display:none;
+  "></div>
+</div>
       <label>Pets</label>
       <div id="h_pets_box"></div>
       <div class="row">
@@ -821,12 +1317,80 @@ async function renderHosp(){
     </div>
   </div>`;
 
-  function loadPetsForTutor(){
-    const box = document.getElementById('h_pets_box'); 
-    box.innerHTML = '';
-    const tutorId = Number(document.getElementById('h_tutor').value||0);
+const hTutorInput = document.getElementById('h_tutor_input');
+const hTutorDropdown = document.getElementById('h_tutor_dropdown');
 
-    for (const p of (byTutor[tutorId]||[]).sort((a,b)=>a.nome.localeCompare(b.nome))) {
+selectedHospTutorId = null;
+
+function showHospTutorsFiltered(filtro='') {
+  hTutorDropdown.innerHTML = '';
+  filtro = filtro.toLowerCase();
+
+  const filtrados = clientesOrdenados.filter(c => 
+    c.nome.toLowerCase().includes(filtro)
+  );
+
+  filtrados.forEach(c => {
+    const opt = document.createElement('div');
+    opt.textContent = c.nome;
+    opt.style.padding = '6px 10px';
+    opt.style.cursor = 'pointer';
+
+    opt.onclick = () => {
+      hTutorInput.value = c.nome;
+      selectedHospTutorId = c.id;
+      hTutorDropdown.style.display = 'none';
+      loadHospPetsForTutor();
+    };
+
+    opt.onmouseenter = () => opt.style.background = '#eee';
+    opt.onmouseleave = () => opt.style.background = '#fff';
+
+    hTutorDropdown.appendChild(opt);
+  });
+
+  hTutorDropdown.style.display = filtrados.length ? 'block' : 'none';
+}
+
+// digitar → filtrar
+hTutorInput.addEventListener('input', () => {
+  selectedHospTutorId = null;
+  showHospTutorsFiltered(hTutorInput.value.trim());
+  clearHospPets();
+});
+
+// focou → mostra tudo
+hTutorInput.addEventListener('focus', () => {
+  showHospTutorsFiltered(hTutorInput.value.trim());
+});
+
+// clique fora → fecha dropdown
+document.addEventListener('click', (e) => {
+  if (!hTutorInput.contains(e.target) && !hTutorDropdown.contains(e.target)) {
+    hTutorDropdown.style.display = 'none';
+  }
+});
+  // ====== PETS VINCULADOS AO TUTOR (NOVA VERSÃO) ======
+  function clearHospPets(){
+    const box = document.getElementById('h_pets_box');
+    if (box) box.innerHTML = '';
+  }
+
+  function loadHospPetsForTutor(){
+    const box = document.getElementById('h_pets_box');
+    if (!box) return;
+
+    box.innerHTML = '';
+
+    // usamos o ID do tutor escolhido no combobox
+    const tutorId = selectedHospTutorId;
+    if (!tutorId) return;
+
+    const lista = (byTutor[tutorId] || [])
+      .slice()
+      .sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+
+    lista.forEach(p => {
       const lbl = document.createElement('label');
       lbl.className = 'chk-inline';
 
@@ -836,17 +1400,15 @@ async function renderHosp(){
       cb.value = p.id;
 
       lbl.appendChild(cb);
-      lbl.appendChild(document.createTextNode(` ${p.nome}`));
+      lbl.appendChild(document.createTextNode(' ' + p.nome));
       box.appendChild(lbl);
-    }
+    });
   }
-
-  document.getElementById('h_tutor').onchange = loadPetsForTutor; loadPetsForTutor();
 
   document.getElementById('h_salvar').onclick = async () => {
     const get = id => document.getElementById(id);
 
-    const tutorId     = Number(get('h_tutor').value || 0);
+const tutorId = Number(selectedHospTutorId);
     const petIds      = Array.from(document.querySelectorAll('input[name="h_pet"]:checked')).map(cb => Number(cb.value));
     const dataEntrada = get('h_data_in').value;
     const dataSaida   = get('h_data_out').value;
@@ -858,7 +1420,7 @@ async function renderHosp(){
     // Tutor obrigatório
     if (!tutorId) {
       toast('O campo Tutor não pode ficar vazio', false);
-      get('h_tutor').focus();
+      hTutorInput.focus();
       return;
     }
 
@@ -1022,47 +1584,69 @@ for (const p of payList.filter(p => p.refKind === 'hospedagem' && p.refId === Nu
   toast('Hospedagem excluída');
   loadHosp('');
 }
+
 async function editHosp(id){
-  const h = await DB.get('hospedagens', id); if (!h) return toast('Hospedagem não encontrada', false);
+  const h = await DB.get('hospedagens', id);
+  if (!h) return toast('Hospedagem não encontrada', false);
+
+  // Renderiza a tela de hospedagem do zero
   await renderHosp();
-  const pets = await DB.list('pets');
-  const byTutor = pets.reduce((acc,p)=>{ (acc[p.tutorId]=acc[p.tutorId]||[]).push(p); return acc; },{});
-  function loadPetsForTutor(){
-    const box = document.getElementById('h_pets_box'); 
-    box.innerHTML = '';
-    const tutorId = Number(document.getElementById('h_tutor').value||0);
 
-    for (const p of (byTutor[tutorId]||[]).sort((a,b)=>a.nome.localeCompare(b.nome))) {
-      const lbl = document.createElement('label');
-      lbl.className = 'chk-inline';
+  // Recarrega clientes e pets para montar tutor + pets
+  const clientes = await DB.list('clientes');
+  const pets     = await DB.list('pets');
+  const byTutor  = pets.reduce((acc,p)=>{
+    (acc[p.tutorId] = acc[p.tutorId] || []).push(p);
+    return acc;
+  },{});
 
-      const cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.name = 'h_pet';
-      cb.value = p.id;
-      if ((h.petIds || []).includes(p.id)) cb.checked = true;
+  const hTutorInput = document.getElementById('h_tutor_input');
+  const box         = document.getElementById('h_pets_box');
 
-      lbl.appendChild(cb);
-      lbl.appendChild(document.createTextNode(` ${p.nome}`));
-      box.appendChild(lbl);
-    }
+  // Preenche tutor no campo novo e seta a variável global
+  selectedHospTutorId = h.tutorId || 0;
+  if (hTutorInput){
+    const cli = clientes.find(c => c.id === h.tutorId);
+    hTutorInput.value = cli ? (cli.nome || '') : '';
   }
-  
-  document.getElementById('h_tutor').value = h.tutorId||'';
-  document.getElementById('h_tutor').onchange = loadPetsForTutor; loadPetsForTutor();
-  document.getElementById('h_data_in').value = h.dataEntrada||'';
-  document.getElementById('h_data_out').value = h.dataSaida||'';
-  document.getElementById('h_hora_in').value = h.horaEntrada||'';
-  document.getElementById('h_hora_out').value = h.horaSaida||'';
-  document.getElementById('h_valor').value = h.valor||0;
-  document.getElementById('h_status').value = h.status||'agendada';
-  document.getElementById('h_obs').value = (h.nota ?? h.observacao ?? '');
+
+  // Monta a lista de pets do tutor e marca os já escolhidos
+  box.innerHTML = '';
+  const listaPets = (byTutor[h.tutorId] || [])
+    .slice()
+    .sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+
+  listaPets.forEach(p => {
+    const lbl = document.createElement('label');
+    lbl.className = 'chk-inline';
+
+    const cb = document.createElement('input');
+    cb.type  = 'checkbox';
+    cb.name  = 'h_pet';
+    cb.value = p.id;
+    if ((h.petIds || []).includes(p.id)) cb.checked = true;
+
+    lbl.appendChild(cb);
+    lbl.appendChild(document.createTextNode(' ' + p.nome));
+    box.appendChild(lbl);
+  });
+
+  // Preenche os outros campos
+  document.getElementById('h_data_in').value  = h.dataEntrada || '';
+  document.getElementById('h_data_out').value = h.dataSaida   || '';
+  document.getElementById('h_hora_in').value  = h.horaEntrada || '';
+  document.getElementById('h_hora_out').value = h.horaSaida   || '';
+  document.getElementById('h_valor').value    = h.valor || 0;
+  document.getElementById('h_status').value   = h.status || 'agendada';
+  document.getElementById('h_obs').value      = (h.nota ?? h.observacao ?? '');
+
+  // Troca o botão Salvar para atualizar
   const salvar = document.getElementById('h_salvar');
   salvar.textContent = 'Atualizar';
   salvar.onclick = async () => {
     const get = id => document.getElementById(id);
 
-    const tutorId     = Number(get('h_tutor').value || 0);
+    const tutorId     = Number(selectedHospTutorId || 0);
     const petIds      = Array.from(document.querySelectorAll('input[name="h_pet"]:checked')).map(cb => Number(cb.value));
     const dataEntrada = get('h_data_in').value;
     const dataSaida   = get('h_data_out').value;
@@ -1074,7 +1658,7 @@ async function editHosp(id){
     // Tutor obrigatório
     if (!tutorId) {
       toast('O campo Tutor não pode ficar vazio', false);
-      get('h_tutor').focus();
+      if (hTutorInput) hTutorInput.focus();
       return;
     }
 
@@ -1139,7 +1723,7 @@ async function editHosp(id){
     await DB.put('hospedagens', h);
     await DB.add('logs', {
       at: new Date().toISOString(),
-      action: '...date',
+      action: 'update',
       entity: 'hospedagem',
       entityId: h.id,
       note: `Atualizada`,
@@ -1149,9 +1733,12 @@ async function editHosp(id){
   };
 }
 
+let selectedCrecheTutorId = null;   // tutor selecionado na tela de CRECHE
+
 // ==== CRECHE ====
 async function renderCreche(prefill = null){
   const clientes = await DB.list('clientes');
+  const clientesOrdenados = clientes.slice().sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
   const pets = await DB.list('pets');
   const byTutor = pets.reduce((acc,p)=>{ (acc[p.tutorId]=acc[p.tutorId]||[]).push(p); return acc; },{});
   const today = new Date();
@@ -1161,7 +1748,21 @@ async function renderCreche(prefill = null){
   <div class="grid">
     <div class="panel">
       <h2>Nova Agenda de Creche</h2>
-      ${Select('Tutor', 'c_tutor', [{value:'',label:'Selecione...'}, ...clientes.map(c=>({value:c.id,label:`${c.nome}`}))])}
+      <div class="field" style="position:relative;">
+        <label for="c_tutor_input">Tutor</label>
+        <input id="c_tutor_input" placeholder="Digite para buscar..." autocomplete="off" />
+        <div id="c_tutor_dropdown" class="dropdown-list" style="
+          position:absolute;
+          z-index:999;
+          background:white;
+          border:1px solid #ccc;
+          border-radius:6px;
+          width:100%;
+          max-height:180px;
+          overflow-y:auto;
+          display:none;
+        "></div>
+      </div>
       <label>Pets</label>
       <div id="c_pets_box"></div>
       ${Select('Frequência semanal - Segunda a Domingo', 'c_freq', [{value:'1',label:'1x por semana'},{value:'2',label:'2x por semana'},{value:'3',label:'3x por semana'},{value:'4',label:'4x por semana'},{value:'5',label:'5x por semana'},{value:'6',label:'6x por semana'},{value:'7',label:'7x por semana'},{value:'ALE',label:'Aleatório'}])}
@@ -1209,13 +1810,25 @@ async function renderCreche(prefill = null){
     </div>
   </div>`;
 
+  // ==== Tutor com busca em um único campo (Creche) ====
+  const cTutorInput    = document.getElementById('c_tutor_input');
+  const cTutorDropdown = document.getElementById('c_tutor_dropdown');
 
-  function loadPetsForTutor(){
+  // carrega pets do tutor selecionado
+  function loadPetsForTutor() {
+    const tutorId = Number(selectedCrecheTutorId || 0);
     const box = document.getElementById('c_pets_box'); 
     box.innerHTML = '';
-    const tutorId = Number(document.getElementById('c_tutor').value||0);
 
-    for (const p of (byTutor[tutorId]||[]).sort((a,b)=>a.nome.localeCompare(b.nome))) {
+    if (!tutorId) return;
+
+    const petsDoTutor = (byTutor[tutorId] || []).slice().sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+    if (!petsDoTutor.length) {
+      box.textContent = 'Nenhum pet cadastrado para este tutor.';
+      return;
+    }
+
+    petsDoTutor.forEach(p => {
       const lbl = document.createElement('label');
       lbl.className = 'chk-inline';
 
@@ -1227,10 +1840,65 @@ async function renderCreche(prefill = null){
       lbl.appendChild(cb);
       lbl.appendChild(document.createTextNode(` ${p.nome}`));
       box.appendChild(lbl);
-    }
+    });
   }
 
-  document.getElementById('c_tutor').onchange = loadPetsForTutor; loadPetsForTutor();
+  function showCrecheTutorsFiltered(filtro = '') {
+    if (!cTutorDropdown) return;
+
+    cTutorDropdown.innerHTML = '';
+    const termo = (filtro || '').toLowerCase();
+
+    const filtrados = clientesOrdenados.filter(c =>
+      (c.nome || '').toLowerCase().includes(termo)
+    );
+
+    filtrados.forEach(c => {
+      const opt = document.createElement('div');
+      opt.textContent = c.nome || '';
+      opt.style.padding = '6px 10px';
+      opt.style.cursor  = 'pointer';
+
+      opt.onclick = () => {
+        cTutorInput.value = c.nome || '';
+        selectedCrecheTutorId = c.id;
+        cTutorDropdown.style.display = 'none';
+        loadPetsForTutor();
+      };
+
+      opt.onmouseenter = () => opt.style.background = '#eee';
+      opt.onmouseleave = () => opt.style.background = '#fff';
+
+      cTutorDropdown.appendChild(opt);
+    });
+
+    cTutorDropdown.style.display = filtrados.length ? 'block' : 'none';
+  }
+
+  if (cTutorInput) {
+    // começa sem tutor selecionado
+    selectedCrecheTutorId = null;
+
+    // digitar → filtrar
+    cTutorInput.addEventListener('input', () => {
+      selectedCrecheTutorId = null;
+      const box = document.getElementById('c_pets_box');
+      if (box) box.innerHTML = '';
+      showCrecheTutorsFiltered(cTutorInput.value.trim());
+    });
+
+    // focar → mostrar todos
+    cTutorInput.addEventListener('focus', () => {
+      showCrecheTutorsFiltered(cTutorInput.value.trim());
+    });
+
+    // clique fora → esconder dropdown
+    document.addEventListener('click', (e) => {
+      if (!cTutorInput.contains(e.target) && !cTutorDropdown.contains(e.target)) {
+        cTutorDropdown.style.display = 'none';
+      }
+    });
+  }
 
   let current = new Date(today.getFullYear(), today.getMonth(), 1);
   const selection = {};
@@ -1361,7 +2029,7 @@ async function renderCreche(prefill = null){
   document.getElementById('c_limpar').onclick = ()=>renderCreche();
   document.getElementById('c_salvar').onclick = async () => {
     const get     = id => document.getElementById(id);
-    const tutorId = Number(document.getElementById('c_tutor').value||0);
+    const tutorId   = Number(selectedCrecheTutorId || 0);
     const petIds  = Array.from(document.querySelectorAll('input[name="c_pet"]:checked')).map(cb => Number(cb.value));
     const valorStr = (get('c_valor').value || '').toString().trim();
 
@@ -1370,7 +2038,8 @@ async function renderCreche(prefill = null){
     // Tutor obrigatório
     if (!tutorId) {
       toast('O campo Tutor não pode ficar vazio', false);
-      get('c_tutor').focus();
+      const inp = document.getElementById('c_tutor_input');
+      if (inp) inp.focus();
       return;
     }
 
@@ -1547,33 +2216,39 @@ async function editCreche(id) {
 const obsEl = document.getElementById('c_obs');
 if (obsEl) obsEl.value = (c.nota ?? c.observacao ?? '');
 
-  // 1) Preenche tutor
-  const tutorEl = document.getElementById('c_tutor');
-  tutorEl.value = String(c.tutorId || '');
+  // 1) Preenche tutor no novo campo
+  const tutorInput = document.getElementById('c_tutor_input');
+  const clientes = await DB.list('clientes');
+  const petsAll  = await DB.list('pets');
+  const byTutor  = petsAll.reduce((acc, p) => {
+    (acc[p.tutorId] = acc[p.tutorId] || []).push(p);
+    return acc;
+  }, {});
 
-  // 2) Recarrega lista de pets do tutor (usa o loader padrão da tela)
-  if (typeof loadPetsForTutor === 'function') {
-    loadPetsForTutor();
-  } else {
-    // fallback: popula rapidamente (com checkboxes)
-    const pets = await DB.list('pets');
-    const byTutor = pets.reduce((acc, p) => { (acc[p.tutorId] = acc[p.tutorId] || []).push(p); return acc; }, {});
-    const box = document.getElementById('c_pets_box');
-    box.innerHTML = '';
-    for (const p of (byTutor[c.tutorId] || []).sort((a,b)=>a.nome.localeCompare(b.nome))) {
-      const lbl = document.createElement('label');
-      lbl.className = 'chk-inline';
+  selectedCrecheTutorId = c.tutorId || 0;
 
-      const cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.name = 'c_pet';
-      cb.value = p.id;
-
-      lbl.appendChild(cb);
-      lbl.appendChild(document.createTextNode(` ${p.nome}`));
-      box.appendChild(lbl);
-    }
+  if (tutorInput) {
+    const cli = clientes.find(cli => cli.id === c.tutorId);
+    tutorInput.value = cli ? (cli.nome || '') : '';
   }
+
+  // 2) Recarrega lista de pets do tutor
+  const box = document.getElementById('c_pets_box');
+  box.innerHTML = '';
+  for (const p of (byTutor[c.tutorId] || []).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''))) {
+    const lbl = document.createElement('label');
+    lbl.className = 'chk-inline';
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.name = 'c_pet';
+    cb.value = p.id;
+
+    lbl.appendChild(cb);
+    lbl.appendChild(document.createTextNode(` ${p.nome}`));
+    box.appendChild(lbl);
+  }
+
 
   // 3) Marca selecionados
   const selectedIds = (c.petIds || []).map(Number);
@@ -1607,7 +2282,7 @@ if (obsEl) obsEl.value = (c.nota ?? c.observacao ?? '');
   salvarBtn.textContent = 'Atualizar agenda';
   salvarBtn.onclick = async () => {
     const get     = id => document.getElementById(id);
-    const tutorId = Number(document.getElementById('c_tutor').value || 0);
+    const tutorId = Number(selectedCrecheTutorId || 0);
     const petIds  = Array.from(document.querySelectorAll('input[name="c_pet"]:checked')).map(cb => Number(cb.value));
     const valorStr = (get('c_valor').value || '').toString().trim();
     const status  = get('c_status').value;
@@ -2156,6 +2831,33 @@ async function buildResumoPeriodo(fromISO, toISO){
   crechesInRange.forEach(c => (c.petIds || []).forEach(id => setPets.add(id)));
   const totalPets = setPets.size;
 
+  // Contagem por espécie (Cachorro, Gato, Outro)
+  let qtCachorro = 0;
+  let qtGato     = 0;
+  let qtOutro    = 0;
+
+  for (const id of setPets) {
+    const pet = byPet[id];
+    if (!pet) continue;
+
+    const especie = (pet.especie || '').toLowerCase();
+
+    if (especie === 'cachorro') {
+      qtCachorro++;
+    } else if (especie === 'gato') {
+      qtGato++;
+    } else {
+      qtOutro++;
+    }
+  }
+
+  const detalhesPets = [];
+  if (qtCachorro) detalhesPets.push(`${qtCachorro} - cachorro`);
+  if (qtGato)      detalhesPets.push(`${qtGato} - gato`);
+  if (qtOutro)     detalhesPets.push(`${qtOutro} - outro`);
+
+  const detalhesPetsStr = detalhesPets.length ? ` (${detalhesPets.join(', ')})` : '';
+
   const somaHosp   = hospInRange.reduce((acc,h)=> acc + Number(h.valor || h.valorTotal || 0), 0);
   const somaCreche = crechesInRange.reduce((acc,c)=> acc + Number(c.valor || 0), 0);
 
@@ -2167,7 +2869,7 @@ async function buildResumoPeriodo(fromISO, toISO){
     <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; font-size:13px;">
       <div class="tag">Hospedagens: <strong>${hospInRange.length}</strong> — ${fmtMoney(somaHosp)}</div>
       <div class="tag">Creches: <strong>${crechesInRange.length}</strong> — ${fmtMoney(somaCreche)}</div>
-      <div class="tag">Pets atendidos: <strong>${totalPets}</strong></div>
+<div class="tag">Pets atendidos: <strong>${totalPets}</strong>${detalhesPetsStr}</div>
     </div>
   `;
 
@@ -2209,7 +2911,34 @@ async function buildResumoPeriodo(fromISO, toISO){
     for (const h of hospSorted){
       const tutor = byCli[h.tutorId] || {};
       const tutorNome = tutor.nome || `Tutor #${h.tutorId}`;
-      const nomesPets = (h.petIds || []).map(id => byPet[id]?.nome || `Pet #${id}`).join(', ');
+
+      // Agrupa os nomes dos pets por espécie e adiciona os emojis
+      const nomesPets = (() => {
+        const nomesDog = [];
+        const nomesCat = [];
+        const nomesOutro = [];
+
+        for (const pid of (h.petIds || [])){
+          const p = byPet[pid];
+          const nome = p?.nome || `Pet #${pid}`;
+          const especieNorm = (p?.especie || '').toString().trim().toLowerCase();
+
+          if (especieNorm.startsWith('cachorro') || especieNorm.startsWith('cão') || especieNorm.startsWith('cao')){
+            nomesDog.push(nome);
+          } else if (especieNorm.startsWith('gato')){
+            nomesCat.push(nome);
+          } else {
+            nomesOutro.push(nome);
+          }
+        }
+
+        const partes = [];
+        if (nomesDog.length)   partes.push(`🐶 ${nomesDog.join(', ')}`);
+        if (nomesCat.length)   partes.push(`🐱 ${nomesCat.join(', ')}`);
+        if (nomesOutro.length) partes.push(`🐾 ${nomesOutro.join(', ')}`);
+
+        return partes.join(' — ');
+      })();
 
       const periodo = `${fmtBRHifen(h.dataEntrada)} → ${fmtBRHifen(h.dataSaida)}`;
       const valorBase = Number(h.valor || h.valorTotal || 0);
@@ -2234,11 +2963,23 @@ async function buildResumoPeriodo(fromISO, toISO){
       // Ícone de pendência no pagamento
       const pagIcon = faltando > 0 ? '⚠️ ' : '';
 
+      // Verifica se é uma adaptação
+      // (procura "adaptação" ou "adaptacao" na observação, sem diferença de maiúsculo/minúsculo)
+      const obsText = (h.observacao || h.nota || '').toString().toLowerCase();
+      const isAdaptacao =
+        obsText.includes('adaptação') ||
+        obsText.includes('adaptacao');
+
+      // Se for adaptação, criamos um selinho amarelo
+      const adaptacaoBadge = isAdaptacao
+        ? `<br><span class="tag tag-yellow">Adaptação</span>`
+        : '';
+
       html += `
         <tr>
           <td>#${h.id}</td>
           <td>${periodo}</td>
-          <td>${tutorNome}<br><span class="muted-sm">${nomesPets}</span></td>
+          <td>${tutorNome}<br><span class="muted-sm">${nomesPets}</span>${adaptacaoBadge}</td>
           <td>${valor}</td>
           <td>${statusIcon}${status}</td>
           <td>${pagIcon}${pagStr}</td>
@@ -2297,13 +3038,40 @@ async function buildResumoPeriodo(fromISO, toISO){
     for (const c of crechesSorted){
       const tutor = byCli[c.tutorId] || {};
       const tutorNome = tutor.nome || `Tutor #${c.tutorId}`;
-      const nomesPets = (c.petIds || []).map(id => byPet[id]?.nome || `Pet #${id}`).join(', ');
 
-    // TODOS os dias da agenda de creche (para mostrar período global + lista completa)
-    const diasAllArr = (c.dias || [])
-      .map(d => String(d.data || ''))
-      .filter(Boolean)
-      .sort();
+      // Agrupa os nomes dos pets por espécie e adiciona os emojis
+      const nomesPets = (() => {
+        const nomesDog = [];
+        const nomesCat = [];
+        const nomesOutro = [];
+
+        for (const pid of (c.petIds || [])){
+          const p = byPet[pid];
+          const nome = p?.nome || `Pet #${pid}`;
+          const especieNorm = (p?.especie || '').toString().trim().toLowerCase();
+
+          if (especieNorm.startsWith('cachorro') || especieNorm.startsWith('cão') || especieNorm.startsWith('cao')){
+            nomesDog.push(nome);
+          } else if (especieNorm.startsWith('gato')){
+            nomesCat.push(nome);
+          } else {
+            nomesOutro.push(nome);
+          }
+        }
+
+        const partes = [];
+        if (nomesDog.length)   partes.push(`🐶 ${nomesDog.join(', ')}`);
+        if (nomesCat.length)   partes.push(`🐱 ${nomesCat.join(', ')}`);
+        if (nomesOutro.length) partes.push(`🐾 ${nomesOutro.join(', ')}`);
+
+        return partes.join(' — ');
+      })();
+
+      // TODOS os dias da agenda de creche (para mostrar período global + lista completa)
+      const diasAllArr = (c.dias || [])
+        .map(d => String(d.data || ''))
+        .filter(Boolean)
+        .sort();
 
     // Apenas os dias que caem dentro do período filtrado (para "Dias por semana")
     const diasPeriodoArr = (c.diasPeriodo || [])
@@ -2467,13 +3235,48 @@ pushDay(d, 'Hospedagem', {
       out += `<div class="day-block"><div class="muted">${weekdayBR(day)} — ${fmtBR(day)}</div>`;
       const rec = map[day] || {creche:[], hosp:[]};
 
-      const hospCount = rec.hosp.length;
-      const creCount = rec.creche.length;
-      const petsSet = new Set();
-      rec.hosp.forEach(h=> (h.petIds||[]).forEach(id=>petsSet.add(id)));
-      rec.creche.forEach(c=> (c.petIds||[]).forEach(id=>petsSet.add(id)));
-      const petsTotal = petsSet.size;
-      out += `<div class="muted-sm" style="margin:4px 0 8px 0">Resumo: ${hospCount} hospedagem${hospCount!==1?'s':''}, ${creCount} creche${creCount!==1?'s':''}, ${petsTotal} pet${petsTotal!==1?'s':''} no total</div>`;
+const hospCount = rec.hosp.length;
+const creCount  = rec.creche.length;
+
+// conjunto com todos os pets no dia (hospedagem + creche)
+const petsSet = new Set();
+rec.hosp.forEach(h => (h.petIds || []).forEach(id => petsSet.add(id)));
+rec.creche.forEach(c => (c.petIds || []).forEach(id => petsSet.add(id)));
+const petsTotal = petsSet.size;
+
+// quebra por espécie (cachorro / gato / outro)
+let nCachorro = 0, nGato = 0, nOutro = 0;
+petsSet.forEach(pid => {
+  const especieRaw = (byPet[pid]?.especie || '').toString().toLowerCase();
+
+  if (!especieRaw) {
+    nOutro++;
+  } else if (
+    especieRaw.includes('cachorro') ||
+    especieRaw.includes('cão') ||
+    especieRaw.includes('cao') ||
+    especieRaw.includes('dog')
+  ) {
+    nCachorro++;
+  } else if (especieRaw.includes('gato')) {
+    nGato++;
+  } else {
+    nOutro++;
+  }
+});
+
+// texto extra de espécies: (1 - cachorro, 2 - gato, 1 - outro)
+let especiesTexto = '';
+if (petsTotal > 0) {
+  especiesTexto = ` (${nCachorro} - cachorro, ${nGato} - gato, ${nOutro} - outro)`;
+}
+
+out += `<div class="muted-sm" style="margin:4px 0 8px 0">
+  Resumo: ${hospCount} hospedagem${hospCount!==1?'s':''},
+  ${creCount} creche${creCount!==1?'s':''},
+  ${petsTotal} pet${petsTotal!==1?'s':''} no total${especiesTexto}
+</div>`;
+
 
       // Hospedagens do dia
       if ((rec.hosp || []).length) {
@@ -2494,10 +3297,48 @@ pushDay(d, 'Hospedagem', {
           // Considera sempre a primeira reserva (normalmente é uma só por tutor/pet no dia)
           const r0 = info.rows[0] || {};
 
-          const petNames = Array.from(info.petIds).map(pid => {
-            const nome = byPet[pid]?.nome || ('#' + pid);
-            return `<a href="#" class="pet-link" data-pet="${pid}" data-ref="${r0.kind}|${r0.refId}">${nome}</a>`;
-          }).join(', ');
+  // Agrupa por espécie para montar:
+  // 🐶 cachorro1, cachorro2 - 🐱 gato1 - 🐾 outro1
+  const nomesPorEspecie = {
+    cachorro: [],
+    gato: [],
+    outro: []
+  };
+
+  Array.from(info.petIds).forEach(pid => {
+    const pet  = byPet[pid];
+    const nome = pet?.nome || ('#' + pid);
+
+    const especieRaw = (pet?.especie || '').toString().toLowerCase();
+    let chave = 'outro';
+
+    if (
+      especieRaw.includes('cachorro') ||
+      especieRaw.includes('cão') ||
+      especieRaw.includes('cao') ||
+      especieRaw.includes('dog')
+    ) {
+      chave = 'cachorro';
+    } else if (especieRaw.includes('gato')) {
+      chave = 'gato';
+    }
+
+    const link = `<a href="#" class="pet-link" data-pet="${pid}" data-ref="${r0.kind}|${r0.refId}">${nome}</a>`;
+    nomesPorEspecie[chave].push(link);
+  });
+
+  const grupos = [];
+  if (nomesPorEspecie.cachorro.length) {
+    grupos.push(`🐶 ${nomesPorEspecie.cachorro.join(', ')}`);
+  }
+  if (nomesPorEspecie.gato.length) {
+    grupos.push(`🐱 ${nomesPorEspecie.gato.join(', ')}`);
+  }
+  if (nomesPorEspecie.outro.length) {
+    grupos.push(`🐾 ${nomesPorEspecie.outro.join(', ')}`);
+  }
+
+  const petNames = grupos.join(' - ');
 
           const inDate  = String(r0.dataEntrada || '').slice(0, 10);
           const outDate = String(r0.dataSaida   || '').slice(0, 10);
@@ -2570,12 +3411,41 @@ pushDay(d, 'Hospedagem', {
             ? ` — <span class="muted-sm">${extra.join(' — ')}</span>`
             : '';
 
-          const hasNote = !!String(r0.nota ?? r0.observacao ?? '').trim();
-          const noteIcon = hasNote
-            ? ' <span class="note-flag" title="Observações deste agendamento">📝</span>'
-            : '';
+// Observação / Nota (usamos para mostrar o ícone e detectar "adaptação")
+const noteRaw = String(r0.nota ?? r0.observacao ?? '');
 
-out += `<div>${iconPrefix ? iconPrefix + ' ' : ''}<strong>${petNames}</strong>${noteIcon} — Tutor: <a href="#" class="tutor-link" data-tutor="${tutorId}"><strong>${tutor}</strong></a>${tailExtra}${controls}</div>`;
+// Ícone de anotação (se tiver qualquer observação)
+const hasNote = !!noteRaw.trim();
+const noteIcon = hasNote
+  ? ' <span class="note-flag" title="Observações deste agendamento">📝</span>'
+  : '';
+
+// === SELINHO DE ADAPTAÇÃO (Hospedagem no Check-in) ===
+// Normaliza: minúsculo + remove acentos (adaptação / adaptacao / ADAPTAÇÃO etc)
+const noteNorm = noteRaw
+  .toLowerCase()
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, ''); // remove acentos
+
+const isAdaptacao = noteNorm.includes('adaptacao');
+
+const adaptBadge = isAdaptacao
+  ? `<span style="
+      display:inline-block;
+      padding:2px 8px;
+      border-radius:999px;
+      background:#fde68a;
+      border:1px solid #f59e0b;
+      color:#92400e;
+      font-size:12px;
+      font-weight:700;
+      margin-right:6px;
+      vertical-align:middle;
+    ">ADAPTAÇÃO</span>`
+  : '';
+
+// IMPORTANTÍSSIMO: aqui é onde o selo entra no HTML (antes do 🐶/🐱 do petNames)
+out += `<div>${iconPrefix ? iconPrefix + ' ' : ''}${adaptBadge}<strong>${petNames}</strong>${noteIcon} — Tutor: <a href="#" class="tutor-link" data-tutor="${tutorId}"><strong>${tutor}</strong></a>${tailExtra}${controls}</div>`;
 
         }
       }
@@ -2605,10 +3475,48 @@ out += `<div>${iconPrefix ? iconPrefix + ' ' : ''}<strong>${petNames}</strong>${
           const tutor = byCli[tutorId]?.nome || ('Tutor #'+tutorId);
           const r0 = info.rows[0] || {};          
 		  
-		  const petNames = Array.from(info.petIds).map(pid=>{
-  const nome = byPet[pid]?.nome || ('#'+pid);
-  return `<a href="#" class="pet-link" data-pet="${pid}" data-ref="${r0.kind}|${r0.refId}">${nome}</a>`;
-}).join(', ');
+  // Agrupa por espécie para montar:
+  // 🐶 cachorro1, cachorro2 - 🐱 gato1 - 🐾 outro1
+  const nomesPorEspecie = {
+    cachorro: [],
+    gato: [],
+    outro: []
+  };
+
+  Array.from(info.petIds).forEach(pid => {
+    const pet  = byPet[pid];
+    const nome = pet?.nome || ('#' + pid);
+
+    const especieRaw = (pet?.especie || '').toString().toLowerCase();
+    let chave = 'outro';
+
+    if (
+      especieRaw.includes('cachorro') ||
+      especieRaw.includes('cão') ||
+      especieRaw.includes('cao') ||
+      especieRaw.includes('dog')
+    ) {
+      chave = 'cachorro';
+    } else if (especieRaw.includes('gato')) {
+      chave = 'gato';
+    }
+
+    const link = `<a href="#" class="pet-link" data-pet="${pid}" data-ref="${r0.kind}|${r0.refId}">${nome}</a>`;
+    nomesPorEspecie[chave].push(link);
+  });
+
+  const grupos = [];
+  if (nomesPorEspecie.cachorro.length) {
+    grupos.push(`🐶 ${nomesPorEspecie.cachorro.join(', ')}`);
+  }
+  if (nomesPorEspecie.gato.length) {
+    grupos.push(`🐱 ${nomesPorEspecie.gato.join(', ')}`);
+  }
+  if (nomesPorEspecie.outro.length) {
+    grupos.push(`🐾 ${nomesPorEspecie.outro.join(', ')}`);
+  }
+
+  const petNames = grupos.join(' - ');
 
           const times = [r0.horaIn, r0.horaOut].filter(Boolean).join(' → ');
 
@@ -3177,8 +4085,153 @@ async function loadLogs(){
   }
 }
 
+function parseMoneyBR(v){
+  if (v == null) return 0;
+  let s = String(v).trim();
+  if (!s) return 0;
+  // remove "R$" e espaços
+  s = s.replace(/r\$\s*/i, '');
+  // troca . milhar e , decimal
+  s = s.replace(/\./g, '').replace(',', '.');
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function toISODateAny(s){
+  s = (s || '').trim();
+  if (!s) return '';
+  // dd/mm/aaaa ou dd-mm-aaaa
+  let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (m){
+    let dd = m[1].padStart(2,'0');
+    let mm = m[2].padStart(2,'0');
+    let yy = m[3];
+    if (yy.length === 2) yy = (parseInt(yy,10) >= 50 ? '19' : '20') + yy;
+    return `${yy}-${mm}-${dd}`;
+  }
+  // yyyy-mm-dd
+  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  return '';
+}
+
+function openHospedagemEditorModal(initial){
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+      position:fixed; inset:0; background:rgba(0,0,0,.55);
+      display:flex; align-items:center; justify-content:center;
+      z-index:9999; padding:16px;
+    `;
+
+    const box = document.createElement('div');
+	box.id = 'he_modal';
+box.style.cssText = `
+  width:min(720px, 96vw);
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid #d4bbff;
+  border-radius: 14px;
+  box-shadow: 0 18px 60px rgba(0,0,0,.35);
+  padding: 16px;
+`;
+
+
+    const safe = (x)=>String(x??'');
+    const dIn  = safe(initial?.dataEntrada||'');
+    const hIn  = safe(initial?.horaEntrada||'');
+    const dOut = safe(initial?.dataSaida||'');
+    const hOut = safe(initial?.horaSaida||'');
+const val  = safe(
+  (initial?.valorRaw ?? initial?.valor ?? '')
+);
+const obs  = safe(
+  (initial?.obs ?? initial?.observacao ?? '')
+);
+
+    box.innerHTML = `
+	<style>
+  #he_modal label.muted-sm{
+    color: var(--text) !important;
+    opacity: 1 !important;
+    font-weight: 700;
+  }
+  #he_modal .muted-sm{
+    opacity: 1 !important;
+  }
+</style>
+
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+        <div style="font-weight:800; font-size:16px;">Confirmar / editar Hospedagem</div>
+        <button id="he_cancel" class="btn btn-danger" style="padding:6px 10px;">Cancelar</button>
+      </div>
+
+      <div style="margin-top:12px; display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <label class="muted-sm">Data de entrada
+          <input id="he_din" class="input" placeholder="dd/mm/aaaa ou yyyy-mm-dd" value="${dIn}">
+        </label>
+        <label class="muted-sm">Hora de entrada
+          <input id="he_hin" class="input" placeholder="ex: 09:00" value="${hIn}">
+        </label>
+        <label class="muted-sm">Data de saída
+          <input id="he_dout" class="input" placeholder="dd/mm/aaaa ou yyyy-mm-dd" value="${dOut}">
+        </label>
+        <label class="muted-sm">Hora de saída
+          <input id="he_hout" class="input" placeholder="ex: 18:00" value="${hOut}">
+        </label>
+        <label class="muted-sm" style="grid-column:1 / -1;">Valor (R$)
+          <input id="he_val" class="input" placeholder="ex: 350 ou 350,00" value="${val}">
+        </label>
+        <label class="muted-sm" style="grid-column:1 / -1;">Observações
+          <textarea id="he_obs" class="input" style="min-height:90px; resize:vertical;" placeholder="Observações adicionais...">${obs}</textarea>
+        </label>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:12px;">
+        <button id="he_ok" class="btn btn-success">Confirmar e salvar</button>
+      </div>
+    `;
+
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    const close = (v)=>{ overlay.remove(); resolve(v); };
+
+    overlay.querySelector('#he_cancel').onclick = ()=>close(null);
+    overlay.onclick = (e)=>{ if (e.target === overlay) close(null); };
+
+    overlay.querySelector('#he_ok').onclick = ()=>{
+      const dataEntrada = overlay.querySelector('#he_din').value.trim();
+      const horaEntrada = overlay.querySelector('#he_hin').value.trim();
+      const dataSaida   = overlay.querySelector('#he_dout').value.trim();
+      const horaSaida   = overlay.querySelector('#he_hout').value.trim();
+      const valorRaw    = overlay.querySelector('#he_val').value.trim();
+      const obs         = overlay.querySelector('#he_obs').value.trim();
+
+      // valida datas minimamente
+      const dinISO  = toISODateAny(dataEntrada);
+      const doutISO = toISODateAny(dataSaida);
+      if (!dinISO || !doutISO){
+        toast('Datas inválidas. Use dd/mm/aaaa ou yyyy-mm-dd', false);
+        return;
+      }
+
+close({
+  // devolve no formato que o salvamento espera
+  dataEntrada: dinISO,
+  horaEntrada: horaEntrada ? horaEntrada.slice(0,5) : '',
+  dataSaida: doutISO,
+  horaSaida: horaSaida ? horaSaida.slice(0,5) : '',
+  valor: parseMoneyBR(valorRaw),
+  obs
+});
+    };
+  });
+}
+
+
 // ==== BACKUP & SOBRE ====
-async function renderBackup(){
+function renderBackup(){
   const view = document.getElementById('view');
   view.innerHTML = `
   <div class="grid">
@@ -3194,24 +4247,526 @@ async function renderBackup(){
       <div class="space"></div>
       <button class="btn btn-warn" id="btn_import">Importar</button>
     </div>
+    <div class="panel">
+      <h2>Importar dados de contrato</h2>
+      <p class="muted">
+        Cole abaixo o bloco <code>ISA_PET_DADOS</code> que aparece no final do contrato
+        (linhas iniciando com <strong>TUTOR|</strong> e <strong>PET|</strong>).
+      </p>
+      <textarea id="contrato_raw" rows="10"
+        placeholder="Cole aqui o texto contendo TUTOR| e PET| ..."></textarea>
+      <div class="space"></div>
+      <button class="btn" id="btn_import_contrato">Importar tutor e pets</button>
+      <p class="muted-sm">
+        Dica: abra o PDF ou o Google Docs, selecione apenas o bloco ISA_PET_DADOS, copie e cole aqui.
+      </p>
+    </div>
   </div>`;
+
+  // Exportar backup (igual antes)
   document.getElementById('btn_export').onclick = async () => {
     const data = await DB.export();
-    const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = `isapet-backup-${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(a.href);
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `isapet-backup-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
     toast('Backup exportado');
   };
+
+  // Importar backup (igual antes)
   document.getElementById('btn_import').onclick = async () => {
     const f = document.getElementById('file_import').files[0];
     if (!f) return toast('Selecione um arquivo', false);
     try {
-      const json = JSON.parse(await f.text()); await DB.import(json);
-      await DB.add('logs', { at:new Date().toISOString(), action:'import', entity:'backup', note:'Importação concluída' });
-      toast('Importado com sucesso'); renderView('checkin');
-    } catch(e){ console.error(e); toast('Arquivo inválido', false); }
+      const json = JSON.parse(await f.text());
+      await DB.import(json);
+      await DB.add('logs', {
+        at: new Date().toISOString(),
+        action: 'import',
+        entity: 'backup',
+        note: 'Importação concluída',
+      });
+      toast('Importado com sucesso');
+      renderView('checkin');
+    } catch(e){
+      console.error(e);
+      toast('Arquivo inválido', false);
+    }
   };
+
+// ================================
+// MODAL DO SISTEMA (substitui alert/confirm do navegador)
+// ================================
+function uiEscapeHtml(str){
+  return (str ?? '').toString()
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;')
+    .replaceAll("'","&#039;");
 }
+
+// Alert bonito (1 botão)
+function uiAlert(message, title = 'Aviso'){
+  return uiConfirm(message, title, { okText: 'OK', showCancel: false });
+}
+
+// Confirm bonito (OK/Cancelar)
+// Retorna Promise<boolean> (true = OK, false = Cancelar)
+function uiConfirm(message, title = 'Confirmação', opts = {}){
+  const {
+    okText = 'OK',
+    cancelText = 'Cancelar',
+    showCancel = true,
+  } = opts;
+
+  return new Promise((resolve) => {
+    // remove modal anterior se existir
+    const old = document.getElementById('sys_modal');
+    if (old) old.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'sys_modal';
+    overlay.style.cssText = `
+      position:fixed; inset:0; z-index:99999;
+      display:flex; align-items:center; justify-content:center;
+      padding:16px;
+      background:rgba(0,0,0,.55);
+    `;
+
+    const box = document.createElement('div');
+    box.style.cssText = `
+      width:min(560px, 100%);
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid #d4bbff;
+      border-radius: 14px;
+      box-shadow: 0 18px 40px rgba(0,0,0,.25);
+      padding: 14px;
+    `;
+
+    box.innerHTML = `
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px;">
+        <div style="font-weight:900; font-size:15px;">${uiEscapeHtml(title)}</div>
+        <button id="sys_close" class="btn btn-ghost" style="padding:6px 10px;">✕</button>
+      </div>
+
+      <div style="
+        white-space:pre-wrap;
+        line-height:1.35;
+        font-size:14px;
+        padding:10px 10px;
+        border-radius:12px;
+        background: rgba(124,58,237,.08);
+        border: 1px solid #d4bbff;
+      ">${uiEscapeHtml(message)}</div>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:12px;">
+        ${showCancel ? `<button id="sys_cancel" class="btn btn-danger" style="padding:10px 14px; border-radius:10px;">${uiEscapeHtml(cancelText)}</button>` : ''}
+        <button id="sys_ok" class="btn btn-primary" style="padding:10px 16px; border-radius:10px; font-weight:800;">
+          ${uiEscapeHtml(okText)}
+        </button>
+      </div>
+    `;
+
+
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    const cleanup = () => {
+      overlay.remove();
+    };
+
+    const ok = () => { cleanup(); resolve(true); };
+    const cancel = () => { cleanup(); resolve(false); };
+
+    // botões
+    box.querySelector('#sys_ok').onclick = ok;
+    const btnCancel = box.querySelector('#sys_cancel');
+    if (btnCancel) btnCancel.onclick = cancel;
+
+    box.querySelector('#sys_close').onclick = cancel;
+
+    // clicar fora fecha como "cancelar"
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) cancel();
+    });
+
+    // tecla ESC fecha como "cancelar"
+    window.addEventListener('keydown', function escHandler(ev){
+      if (ev.key === 'Escape'){
+        window.removeEventListener('keydown', escHandler);
+        cancel();
+      }
+    });
+  });
+}
+
+  // Importar dados do contrato (novo)
+  const btnContrato = document.getElementById('btn_import_contrato');
+  if (btnContrato){
+    btnContrato.onclick = async () => {
+      const txtEl = document.getElementById('contrato_raw');
+      const txt = (txtEl.value || '').trim();
+      if (!txt){
+        return toast('Cole o texto do contrato no campo acima', false);
+      }
+
+try {
+  const parsed = parseIsaPetDados(txt);
+
+  if (!parsed || !parsed.tutor){
+    return toast('Não encontrei dados válidos. Verifique se o bloco ISA_PET_DADOS está completo.', false);
+  }
+
+        // 1) Prepara tutor e tenta completar cidade pelo CEP
+        const tutorData = { ...parsed.tutor };
+
+        if (tutorData && tutorData.cep) {
+          let cep = (tutorData.cep || '').replace(/\D/g, '');
+          if (cep.length === 8) {
+            try {
+              const resp = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+              if (resp.ok) {
+                const data = await resp.json();
+                if (!data.erro) {
+                  const cidade = data.localidade || '';
+                  const uf = data.uf || '';
+                  const cidadeTexto = [cidade, uf].filter(Boolean).join(' - ');
+                  if (cidadeTexto) {
+                    tutorData.cidade = cidadeTexto;
+                  }
+                }
+              }
+            } catch(e){
+              console.error('Erro ao completar cidade via CEP na importação:', e);
+            toast('Erro ao importar dados do contrato', false);
+			}
+          }
+        }
+
+        // 2) Verifica se o tutor já existe (CPF primeiro)
+        const existingTutor = await findExistingTutor(tutorData);
+
+        // Campos do tutor que vamos permitir atualizar (quando vierem preenchidos)
+        const tutorFields = ['nome','cpf','documento','telefone','email','cep','cidade','endereco','contatoVet','observacao'];
+
+        let tutorId = null;
+
+        if (existingTutor){
+          const diffsTutor = diffFields(existingTutor, tutorData, tutorFields);
+
+          // Mostra resumo + confirma
+          let msg = '';
+          msg += `⚠️ Já existe um tutor com esse CPF/dados.\n\n`;
+          msg += `Tutor atual (ID ${existingTutor.id}): ${existingTutor.nome || ''}\n`;
+          msg += `CPF atual: ${(existingTutor.cpf || existingTutor.documento || '')}\n\n`;
+          msg += formatDiffBlock('Diferenças encontradas (Tutor):', diffsTutor);
+          msg += `Deseja ATUALIZAR o cadastro existente com os dados novos?\n\n`;
+          msg += `OK = Atualiza\nCancelar = Mantém como está`;
+
+          let wantUpdateTutor = false;
+
+if (!diffsTutor.length) {
+  const nomeTutorOk = (existingTutor.nome || tutorData.nome || '').trim() || `ID ${existingTutor.id}`;
+  await uiAlert(`✅ Tutor: ${nomeTutorOk} já existe e os dados estão 100% atualizados.\nNenhuma alteração foi feita.`, 'Importação');
+} else {
+  wantUpdateTutor = await uiConfirm(msg, 'Atualizar tutor?', { okText: 'Atualizar', cancelText: 'Manter como está' });
+}
+
+
+          if (wantUpdateTutor && diffsTutor.length){
+            const updated = { ...existingTutor };
+
+            // atualiza somente campos que vieram preenchidos (não apaga nada antigo)
+            for (const f of tutorFields){
+              const val = (tutorData?.[f] ?? '').toString().trim();
+              if (val) updated[f] = tutorData[f];
+            }
+
+            await DB.put('clientes', updated);
+            await DB.add('logs', {
+              at: new Date().toISOString(),
+              action: 'update',
+              entity: 'cliente',
+              entityId: existingTutor.id,
+              note: `Atualizado via importação: ${updated.nome || ''}`,
+            });
+          }
+
+          tutorId = existingTutor.id;
+
+} else {
+  // ✅ CONFIRMAÇÃO ANTES DA PRIMEIRA IMPORTAÇÃO (novo tutor)
+  const petsPreview = (parsed.pets || []).filter(p => (p.nome || '').trim());
+  let msgNovo = '';
+  msgNovo += `🆕 Novo cadastro será CRIADO no sistema.\n\n`;
+
+  // Tutor
+  msgNovo += `TUTOR:\n`;
+  msgNovo += `• Nome: ${tutorData.nome || ''}\n`;
+  msgNovo += `• CPF: ${tutorData.cpf || tutorData.documento || ''}\n`;
+  msgNovo += `• Telefone: ${tutorData.telefone || ''}\n`;
+  msgNovo += `• E-mail: ${tutorData.email || ''}\n`;
+  msgNovo += `• CEP: ${tutorData.cep || ''}\n`;
+  msgNovo += `• Cidade: ${tutorData.cidade || ''}\n`;
+  msgNovo += `• Endereço: ${tutorData.endereco || ''}\n`;
+  msgNovo += `• Vet: ${tutorData.contatoVet || ''}\n`;
+  msgNovo += `\n`;
+
+  // Pets
+  msgNovo += `PETS (${petsPreview.length}):\n`;
+  if (!petsPreview.length){
+    msgNovo += `• (Nenhum pet válido encontrado)\n`;
+  } else {
+    petsPreview.forEach((p, idx) => {
+      msgNovo += `\n${idx+1}) ${p.nome || ''}\n`;
+      msgNovo += `   • Espécie: ${p.especie || ''}\n`;
+      msgNovo += `   • Raça: ${p.raca || ''}\n`;
+      msgNovo += `   • Sexo: ${p.sexo || ''}\n`;
+      msgNovo += `   • Nasc.: ${p.nascimento || ''}\n`;
+      msgNovo += `   • Castrado: ${p.castrado ? 'Sim' : 'Não'}\n`;
+      msgNovo += `   • Alergias: ${p.alergiasFlag ? 'Sim' : 'Não'} ${p.alergiasTexto ? `(${p.alergiasTexto})` : ''}\n`;
+      msgNovo += `   • Doenças: ${p.doencasFlag ? 'Sim' : 'Não'} ${p.doencasTexto ? `(${p.doencasTexto})` : ''}\n`;
+      msgNovo += `   • Cuidados: ${p.cuidadosFlag ? 'Sim' : 'Não'} ${p.cuidadosTexto ? `(${p.cuidadosTexto})` : ''}\n`;
+    });
+  }
+
+  msgNovo += `\n\nOK = Criar cadastro\nCancelar = Não importar nada`;
+
+  const okCriar = await uiConfirm(msgNovo, 'Criar novo tutor?', { okText: 'Criar', cancelText: 'Cancelar' });
+  if (!okCriar) {
+    toast('Importação cancelada');
+    return;
+  }
+
+  // Não existe: cria novo
+  tutorId = await DB.add('clientes', tutorData);
+  await DB.add('logs', {
+    at: new Date().toISOString(),
+    action: 'create',
+    entity: 'cliente',
+    entityId: tutorId,
+    note: `Importado de contrato: ${tutorData.nome || ''}`,
+  });
+}
+
+        // 3) Pets: evita duplicar e pergunta se quer atualizar quando existir
+        let countPetsAdded = 0;
+        let countPetsUpdated = 0;
+        let countPetsSkipped = 0;
+
+const petsAlreadyOkNames = [];
+
+        const petFields = ['nome','especie','raca','sexo','nascimento','castrado','doencasTexto','alergiasTexto','cuidadosTexto','doencasFlag','alergiasFlag','cuidadosFlag'];
+        const importedPetIds = [];
+
+        for (const p of (parsed.pets || [])){
+
+          p.tutorId = tutorId;
+
+          const existingPet = await findExistingPetForTutor(tutorId, p);
+
+          if (!existingPet){
+            const petId = await DB.add('pets', p);
+			importedPetIds.push(petId);
+            await DB.add('logs', {
+              at: new Date().toISOString(),
+              action: 'create',
+              entity: 'pet',
+              entityId: petId,
+              note: `Importado de contrato: ${p.nome || ''}`,
+            });
+            countPetsAdded++;
+            continue;
+          }
+
+          // Pet já existe: checa diferenças
+          const diffsPet = diffFields(existingPet, p, petFields);
+
+if (!diffsPet.length){
+  importedPetIds.push(existingPet.id);
+  countPetsSkipped++;
+
+  const nomePetOk = (existingPet.nome || p.nome || '').trim();
+  if (nomePetOk) petsAlreadyOkNames.push(nomePetOk);
+
+  continue;
+}
+
+          let msgPet = '';
+          msgPet += `⚠️ Pet já cadastrado para este tutor.\n\n`;
+          msgPet += `Pet atual (ID ${existingPet.id}): ${existingPet.nome || ''}\n\n`;
+          msgPet += formatDiffBlock('Diferenças encontradas (Pet):', diffsPet);
+          msgPet += `Deseja ATUALIZAR este pet com os dados novos?\n\n`;
+          msgPet += `OK = Atualiza\nCancelar = Mantém como está`;
+
+          const wantUpdatePet = await uiConfirm(msgPet, 'Atualizar pet?', { okText: 'Atualizar', cancelText: 'Manter como está' });
+
+          if (wantUpdatePet){
+            const updatedPet = { ...existingPet };
+
+            for (const f of petFields){
+              const val = (p?.[f] ?? '');
+              // aqui a gente atualiza se vier definido (inclusive boolean)
+              if (val !== '' && val !== null && val !== undefined){
+                updatedPet[f] = p[f];
+              }
+            }
+
+            await DB.put('pets', updatedPet);
+            await DB.add('logs', {
+              at: new Date().toISOString(),
+              action: 'update',
+              entity: 'pet',
+              entityId: existingPet.id,
+              note: `Atualizado via importação: ${updatedPet.nome || ''}`,
+            });
+
+            countPetsUpdated++;
+          } else {
+            countPetsSkipped++;
+          }
+		  importedPetIds.push(existingPet.id);
+        }
+
+// ✅ Se existirem pets que já estavam 100% OK, mostra um aviso bonitinho
+if (petsAlreadyOkNames.length){
+  const lista = petsAlreadyOkNames.slice(0, 4).join(', ');
+  const extra = petsAlreadyOkNames.length > 4 ? ` (+${petsAlreadyOkNames.length - 4})` : '';
+  await uiAlert(
+    `✅ Pet(s): ${lista}${extra}\nJá existe(m) e os dados estão 100% atualizados.\nNenhuma alteração foi feita.`,
+    'Importação'
+  );
+}
+
+
+// 4) Hospedagem (se veio no texto) - abre editor, evita duplicar e salva/atualiza
+let hospId = null;
+
+if (parsed.hospedagem && importedPetIds.length){
+  const edited = await openHospedagemEditorModal(parsed.hospedagem);
+
+  if (!edited){
+    toast('Hospedagem não foi importada (cancelado na confirmação).');
+  } else {
+
+    const rec = {
+      tutorId: Number(tutorId),
+      petIds: importedPetIds.map(Number).filter(Boolean),
+      dataEntrada: edited.dataEntrada,   // yyyy-mm-dd (modal já entrega assim)
+      dataSaida:   edited.dataSaida,     // yyyy-mm-dd
+      horaEntrada: edited.horaEntrada,   // HH:MM
+      horaSaida:   edited.horaSaida,     // HH:MM
+      valor: Number(edited.valor || 0),
+      status: 'agendada',
+      observacao: (edited.obs || '').trim(),
+      nota: (edited.obs || '').trim(),
+    };
+
+    // ---------- anti-duplicação ----------
+    const sameSet = (a, b) => {
+      const A = (a || []).map(Number).filter(Boolean).sort((x,y)=>x-y);
+      const B = (b || []).map(Number).filter(Boolean).sort((x,y)=>x-y);
+      if (A.length !== B.length) return false;
+      for (let i=0;i<A.length;i++) if (A[i] !== B[i]) return false;
+      return true;
+    };
+
+    const allHosp = await DB.list('hospedagens');
+
+    const existingHosp = allHosp.find(h =>
+      Number(h.tutorId) === rec.tutorId &&
+      (h.dataEntrada || '') === (rec.dataEntrada || '') &&
+      (h.dataSaida || '') === (rec.dataSaida || '') &&
+      sameSet(h.petIds, rec.petIds)
+    ) || null;
+
+    if (existingHosp){
+      // se já existe, mostra e pergunta se quer atualizar
+      const diffs = [];
+      const cmp = (f, label) => {
+        const before = (existingHosp?.[f] ?? '').toString().trim();
+        const after  = (rec?.[f] ?? '').toString().trim();
+        if (after && before !== after) diffs.push({ label, before, after, field: f });
+      };
+
+      cmp('horaEntrada', 'Hora entrada');
+      cmp('horaSaida',   'Hora saída');
+      if ((rec.valor ?? 0) !== (existingHosp.valor ?? 0)){
+        diffs.push({ label:'Valor', before: existingHosp.valor ?? 0, after: rec.valor ?? 0, field:'valor' });
+      }
+      cmp('observacao',  'Observação');
+
+if (!diffs.length){
+  const nomeTutorHosp = (tutorData?.nome || '').trim() || `Tutor ID ${tutorId}`;
+  const de = rec.dataEntrada || '-';
+  const ate = rec.dataSaida || '-';
+await uiAlert(`✅ Hospedagem: ${nomeTutorHosp} (${de} → ${ate})\nJá existe e está 100% igual.\nNão foi duplicada.`, 'Importação');
+} else {
+        let msg = '⚠️ Já existe uma hospedagem IGUAL (mesmo tutor/pets/datas).\n\n';
+        msg += 'Diferenças encontradas:\n';
+        diffs.forEach(d => msg += `- ${d.label}: "${d.before || '-'}" → "${d.after}"\n`);
+        msg += '\nDeseja ATUALIZAR a hospedagem existente?\nOK = Atualiza | Cancelar = Mantém';
+
+const wantUpdate = await uiConfirm(msg, 'Atualizar hospedagem?', { okText: 'Atualizar', cancelText: 'Manter como está' });
+
+        if (wantUpdate){
+          const updated = { ...existingHosp, ...rec, id: existingHosp.id };
+          await DB.put('hospedagens', updated);
+
+          await DB.add('logs', {
+            at: new Date().toISOString(),
+            action: 'update',
+            entity: 'hospedagem',
+            entityId: existingHosp.id,
+            note: 'Atualizado via importação',
+          });
+
+          hospId = existingHosp.id;
+          toast(`Hospedagem atualizada (ID ${existingHosp.id}).`);
+        } else {
+          toast('Hospedagem mantida sem alteração.');
+        }
+      }
+
+    } else {
+      // cria nova
+      hospId = await DB.add('hospedagens', rec);
+
+      await DB.add('logs', {
+        at: new Date().toISOString(),
+        action: 'create',
+        entity: 'hospedagem',
+        entityId: hospId,
+        note: `Hospedagem importada (tutor ${tutorId})`,
+      });
+
+      toast(`Hospedagem criada com sucesso (ID ${hospId}).`);
+    }
+  }
+}
+		
+
+if (countPetsAdded === 0 && countPetsUpdated === 0 && countPetsSkipped > 0) {
+  toast(`Importação: nenhum dado mudou. Tutor ID ${tutorId}. Pets mantidos ${countPetsSkipped}.` + (hospId ? ` Hospedagem #${hospId}.` : ''));
+} else {
+  toast(`Importação concluída. Tutor ID ${tutorId}. Pets: adicionados ${countPetsAdded}, atualizados ${countPetsUpdated}, mantidos ${countPetsSkipped}.` + (hospId ? ` Hospedagem #${hospId}.` : ''));
+}
+
+        txtEl.value = '';
+
+      } catch(e){
+        console.error(e);
+        toast('Erro ao importar dados do contrato', false);
+      }
+    };
+  }
+}
+
+
 
 async function renderSobre(){
   const view = document.getElementById('view');
