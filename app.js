@@ -1,5 +1,16 @@
 // app.js v3 (patched)
-document.addEventListener('DOMContentLoaded', ()=>renderView('checkin'));
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    // 1) garante login + conexão com Supabase antes de abrir o sistema
+    await DB.init();
+    // 2) agora pode carregar a tela normalmente
+    renderView('checkin');
+  } catch (e) {
+    console.error(e);
+    toast('Falha ao iniciar (login/banco). Veja o console.', false);
+  }
+});
+
 
 // Helpers
 function fmtMoney(v){ return 'R$ ' + Number(v||0).toFixed(2); }
