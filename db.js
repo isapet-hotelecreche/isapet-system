@@ -216,6 +216,13 @@ async function requireLogin(){
 
 async function detectTableShape(table){
   const c = ensureClient();
+
+  // Helper: testa se uma coluna existe (funciona mesmo com tabela vazia)
+  async function hasCol(col){
+    const { error } = await c.from(table).select(col).limit(1);
+    return !error;
+  }
+
   // pega 1 registro e olha as colunas que existem de verdade
   const { data, error } = await c.from(table).select("*").order("id", { ascending: true }).limit(1);
   if (error) throw error;
@@ -224,12 +231,25 @@ async function detectTableShape(table){
   const keys = new Set(Object.keys(row));
 
   let style = "unknown";
-  // Heurística: se existir "tutorId" é camel. Se existir "tutor_id" é snake.
-  if (keys.has("tutorId") || keys.has("petIds") || keys.has("contatoVet")) style = "camel";
-  else if (keys.has("tutor_id") || keys.has("pet_ids") || keys.has("contato_vet")) style = "snake";
+
+  // Se veio pelo menos um registro, decide pelo que apareceu
+  if (keys.size){
+    if (keys.has("tutorId") || keys.has("petIds") || keys.has("contatoVet") || keys.has("entityId")) style = "camel";
+    else if (keys.has("tutor_id") || keys.has("pet_ids") || keys.has("contato_vet") || keys.has("entity_id")) style = "snake";
+  } else {
+    // Tabela vazia: “probe” por colunas conhecidas
+    // logs: quase sempre é entity_id
+    if (await hasCol("entity_id")) style = "snake";
+    else if (await hasCol("entityId")) style = "camel";
+
+    // fallback genérico (outros casos)
+    else if (await hasCol("tutor_id") || await hasCol("pet_ids") || await hasCol("contato_vet")) style = "snake";
+    else if (await hasCol("tutorId") || await hasCol("petIds") || await hasCol("contatoVet")) style = "camel";
+  }
 
   tableShape[table] = { keys, style };
 }
+
 
 function toDb(table, rec){
   const shape = tableShape[table]?.style || "unknown";

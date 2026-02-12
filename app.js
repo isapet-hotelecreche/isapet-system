@@ -259,8 +259,17 @@ pets.push({
       const horaSaidaRaw   = (partes[4] || '').trim();
       const valorRaw       = (partes[5] || '').trim();
 
-      // Observação pode ter '|' (raro) e pode ter sido “juntada” com espaços por causa do replace acima
-      const obsRaw = (partes.slice(6).join('|') || '').trim();
+// Observação pode ter '|' (raro) e pode ter sido “juntada” com espaços por causa do replace acima
+let obsRaw = (partes.slice(6).join('|') || '').trim();
+
+// Remove qualquer sujeira de separador do contrato (==== / ==== FIM ====)
+obsRaw = obsRaw
+  .replace(/====\s*FIM\s*====/gi, '')
+  .replace(/====/g, '')
+  .trim();
+
+// Se ficou vazio, deixa realmente vazio (sem traços, sem nada)
+if (!obsRaw) obsRaw = '';
 
       const toISODateAny = (s) => {
         const v = (s || '').trim();
