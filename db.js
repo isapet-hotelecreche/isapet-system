@@ -9,9 +9,32 @@ const STORES = ["clientes","pets","hospedagens","creches","pagamentos","logs"];
 
 let supa = null;
 
+// ====== PERFORMANCE: init só 1 vez ======
+let __dbInitPromise = null;
+let __dbInited = false;
+
 // guarda o “formato” real das colunas de cada tabela (camelCase vs snake_case)
 // Ex.: tutorId OU tutor_id, petIds OU pet_ids, contatoVet OU contato_vet etc.
 const tableShape = {}; // { clientes: {keys:Set, style:"camel"|"snake"|"unknown"} ... }
+
+// ====== PERFORMANCE: cache em memória (TTL) ======
+const __cache = {}; // ex: { clientes: { at: 123, rows: [...] } }
+const __CACHE_TTL_MS = 8000; // 8s (pode ajustar)
+function cacheGet(table){
+  const c = __cache[table];
+  if (!c) return null;
+  if ((Date.now() - c.at) > __CACHE_TTL_MS) return null;
+  return c.rows;
+}
+function cacheSet(table, rows){
+  __cache[table] = { at: Date.now(), rows };
+}
+function cacheClear(table){
+  if (table) delete __cache[table];
+  else {
+    for (const k of Object.keys(__cache)) delete __cache[k];
+  }
+}
 
 function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
 
@@ -314,9 +337,13 @@ async function nextId(table){
 }
 
 async function supaList(table, query){
+  // Cache só quando NÃO tem query (lista “normal”)
+  if (!query) {
+    const cached = cacheGet(table);
+    if (cached) return cached;
+  }
+
   const c = ensureClient();
-  // Para manter a “busca” simples igual seu IndexedDB, buscamos tudo e filtramos no JS.
-  // Com seu volume atual (bem pequeno) isso roda liso.
   const { data, error } = await c.from(table).select("*").order("id", { ascending:true });
   if (error) throw error;
 
@@ -325,10 +352,13 @@ async function supaList(table, query){
   if (query) {
     const q = String(query).toLowerCase();
     rows = rows.filter(r => JSON.stringify(r).toLowerCase().includes(q));
+  } else {
+    cacheSet(table, rows);
   }
 
   return rows;
 }
+
 
 async function supaGet(table, id){
   const c = ensureClient();
@@ -349,7 +379,7 @@ async function supaAdd(table, rec){
 
   const { error } = await c.from(table).insert(payload);
   if (error) throw error;
-
+cacheClear(table);
   return row.id;
 }
 
@@ -360,7 +390,7 @@ async function supaPut(table, rec){
 
   const { error } = await c.from(table).update(payload).eq("id", Number(rec.id));
   if (error) throw error;
-
+cacheClear(table);
   return rec.id;
 }
 
@@ -368,6 +398,7 @@ async function supaDelete(table, id){
   const c = ensureClient();
   const { error } = await c.from(table).delete().eq("id", Number(id));
   if (error) throw error;
+  cacheClear(table);
   return true;
 }
 
@@ -397,17 +428,28 @@ async function supaImport(json){
 }
 
 const DB = {
-  init: async () => {
+init: async () => {
+  // Se já inicializou, não faz nada
+  if (__dbInited) return true;
+
+  // Se já tem uma inicialização em andamento, aguarda ela
+  if (__dbInitPromise) return __dbInitPromise;
+
+  __dbInitPromise = (async () => {
     ensureClient();
     await requireLogin();
 
-    // detecta o formato de colunas real do seu banco (camel vs snake)
+    // detecta o formato das colunas só 1 vez
     for (const t of STORES) {
       await detectTableShape(t);
     }
 
+    __dbInited = true;
     return true;
-  },
+  })();
+
+  return __dbInitPromise;
+},
 
   list: async (store, query) => {
     await DB.init();
