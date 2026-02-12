@@ -1,12 +1,23 @@
 // app.js v3 (patched)
 document.addEventListener('DOMContentLoaded', async () => {
+  // Loading (tela inicial)
+  const loadingEl = document.getElementById('app_loading');
+  const hideLoading = () => {
+    if (loadingEl) loadingEl.style.display = 'none';
+  };
+
   try {
     // 1) garante login + conexão com Supabase antes de abrir o sistema
     await DB.init();
+
     // 2) agora pode carregar a tela normalmente
-    renderView('checkin');
+    await renderView('checkin');
+
+    // 3) some com o loading
+    hideLoading();
   } catch (e) {
     console.error(e);
+    hideLoading();
     toast('Falha ao iniciar (login/banco). Veja o console.', false);
   }
 });

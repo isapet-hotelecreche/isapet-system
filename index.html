@@ -538,8 +538,53 @@ label{
     text-align: center;
   }
 </style>
+<style>
+  /* ===== LOADING (tela inicial) ===== */
+  #app_loading{
+    position:fixed;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:var(--bg);
+    z-index:999998;
+    padding:16px;
+  }
+  #app_loading .card{
+    background:#ffffff;
+    border:1px solid #d4bbff;
+    border-radius:16px;
+    padding:16px 18px;
+    box-shadow:0 10px 30px rgba(15,23,42,.18);
+    display:flex;
+    gap:12px;
+    align-items:center;
+    max-width:420px;
+    width:100%;
+  }
+  #app_loading .spin{
+    width:18px;
+    height:18px;
+    border:3px solid #d4bbff;
+    border-top-color:var(--accent);
+    border-radius:50%;
+    animation:spin .9s linear infinite;
+    flex:0 0 auto;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
 </head>
 <body>
+  <!-- LOADING inicial -->
+  <div id="app_loading">
+    <div class="card">
+      <div class="spin"></div>
+      <div>
+        <strong>Carregando…</strong>
+        <div class="muted-sm">Conectando ao banco e iniciando o sistema.</div>
+      </div>
+    </div>
+  </div>
   <header>
     <h1>🐾 Isa Pet Hotel & Creche 🐾</h1>
     <div class="chip">Banco: <strong>Online</strong> (Supabase) · Login obrigatório</div>
