@@ -4358,6 +4358,8 @@ function uiConfirm(message, title = 'Confirmação', opts = {}){
     const old = document.getElementById('sys_modal');
     if (old) old.remove();
 
+    const previouslyFocused = document.activeElement;
+
     const overlay = document.createElement('div');
     overlay.id = 'sys_modal';
     overlay.style.cssText = `
@@ -4370,6 +4372,8 @@ function uiConfirm(message, title = 'Confirmação', opts = {}){
     const box = document.createElement('div');
     box.style.cssText = `
       width:min(560px, 100%);
+      max-height: min(78vh, 720px);
+      overflow:auto;
       background: var(--bg);
       color: var(--text);
       border: 1px solid #d4bbff;
@@ -4394,7 +4398,7 @@ function uiConfirm(message, title = 'Confirmação', opts = {}){
         border: 1px solid #d4bbff;
       ">${uiEscapeHtml(message)}</div>
 
-      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:12px;">
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:12px; position:sticky; bottom:0; padding-top:10px; background: var(--bg);">
         ${showCancel ? `<button id="sys_cancel" class="btn btn-danger" style="padding:10px 14px; border-radius:10px;">${uiEscapeHtml(cancelText)}</button>` : ''}
         <button id="sys_ok" class="btn btn-primary" style="padding:10px 16px; border-radius:10px; font-weight:800;">
           ${uiEscapeHtml(okText)}
@@ -4402,12 +4406,27 @@ function uiConfirm(message, title = 'Confirmação', opts = {}){
       </div>
     `;
 
-
     overlay.appendChild(box);
     document.body.appendChild(overlay);
 
+    let done = false;
+
+    const escHandler = (ev) => {
+      if (ev.key === 'Escape') cancel();
+    };
+
     const cleanup = () => {
-      overlay.remove();
+      // evita “fechar duas vezes”
+      if (done) return;
+      done = true;
+
+      window.removeEventListener('keydown', escHandler);
+      try { overlay.remove(); } catch(e) {}
+
+      // devolve foco para o elemento anterior (ajuda no tablet/navegação)
+      try {
+        if (previouslyFocused && previouslyFocused.focus) previouslyFocused.focus();
+      } catch(e) {}
     };
 
     const ok = () => { cleanup(); resolve(true); };
@@ -4415,6 +4434,7 @@ function uiConfirm(message, title = 'Confirmação', opts = {}){
 
     // botões
     box.querySelector('#sys_ok').onclick = ok;
+
     const btnCancel = box.querySelector('#sys_cancel');
     if (btnCancel) btnCancel.onclick = cancel;
 
@@ -4426,14 +4446,13 @@ function uiConfirm(message, title = 'Confirmação', opts = {}){
     });
 
     // tecla ESC fecha como "cancelar"
-    window.addEventListener('keydown', function escHandler(ev){
-      if (ev.key === 'Escape'){
-        window.removeEventListener('keydown', escHandler);
-        cancel();
-      }
-    });
+    window.addEventListener('keydown', escHandler);
+
+    // foco inicial no OK (melhor UX)
+    try { box.querySelector('#sys_ok')?.focus(); } catch(e) {}
   });
 }
+
 
   // Importar dados do contrato (novo)
   const btnContrato = document.getElementById('btn_import_contrato');
