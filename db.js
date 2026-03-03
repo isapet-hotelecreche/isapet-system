@@ -234,13 +234,29 @@ async function detectTableShape(table){
 
   // Se veio pelo menos um registro, decide pelo que apareceu
   if (keys.size){
-    if (keys.has("tutorId") || keys.has("petIds") || keys.has("contatoVet") || keys.has("entityId")) style = "camel";
-    else if (keys.has("tutor_id") || keys.has("pet_ids") || keys.has("contato_vet") || keys.has("entity_id")) style = "snake";
+    // ✅ inclui também "pagamentos" (refKind/refId ou ref_kind/ref_id)
+    if (
+      keys.has("tutorId") || keys.has("petIds") || keys.has("contatoVet") || keys.has("entityId") ||
+      keys.has("refKind") || keys.has("refId")
+    ) {
+      style = "camel";
+    }
+    else if (
+      keys.has("tutor_id") || keys.has("pet_ids") || keys.has("contato_vet") || keys.has("entity_id") ||
+      keys.has("ref_kind") || keys.has("ref_id")
+    ) {
+      style = "snake";
+    }
   } else {
     // Tabela vazia: “probe” por colunas conhecidas
-    // logs: quase sempre é entity_id
+
+    // logs
     if (await hasCol("entity_id")) style = "snake";
     else if (await hasCol("entityId")) style = "camel";
+
+    // ✅ pagamentos (probe)
+    else if (await hasCol("ref_kind") || await hasCol("ref_id")) style = "snake";
+    else if (await hasCol("refKind") || await hasCol("refId")) style = "camel";
 
     // fallback genérico (outros casos)
     else if (await hasCol("tutor_id") || await hasCol("pet_ids") || await hasCol("contato_vet")) style = "snake";
@@ -379,6 +395,51 @@ async function supaList(table, query){
   return rows;
 }
 
+// ====== NOVO: LISTAGEM PAGINADA (sem baixar tudo) ======
+async function supaListPage(table, opts = {}){
+  const c = ensureClient();
+
+  const limit = Number(opts.limit || 200);
+  const offset = Number(opts.offset || 0);
+
+  // por padrão mantém compat com seu app
+  const orderBy = (opts.orderBy || 'id').toString();
+  const ascending = !!opts.ascending;
+
+  const rawQuery = (opts.query ?? '').toString().trim();
+
+  // range é inclusivo no Supabase: range(from, to)
+  const from = offset;
+  const to = offset + Math.max(0, limit - 1);
+
+  // monta query
+  let qb = c.from(table).select('*');
+
+  // Filtro opcional (por enquanto vamos usar só em logs)
+  // Se der qualquer erro de coluna/filtro, fazemos fallback sem filtro.
+  if (rawQuery && table === 'logs') {
+    // Supabase "or" usa vírgula como separador, então removemos vírgulas do termo
+    const safeQ = rawQuery.replaceAll(',', ' ').trim();
+    const pat = `%${safeQ}%`;
+    qb = qb.or(`note.ilike.${pat},entity.ilike.${pat},action.ilike.${pat}`);
+  }
+
+  qb = qb.order(orderBy, { ascending }).range(from, to);
+
+  let { data, error } = await qb;
+
+  // fallback: se falhar por conta do filtro, tenta sem filtro
+  if (error && rawQuery) {
+    const retry = await c.from(table).select('*').order(orderBy, { ascending }).range(from, to);
+    if (retry.error) throw retry.error;
+    data = retry.data;
+  } else if (error) {
+    throw error;
+  }
+
+  return (data || []).map(r => fromDb(table, r));
+}
+
 
 async function supaGet(table, id){
   const c = ensureClient();
@@ -386,6 +447,18 @@ async function supaGet(table, id){
   if (error) throw error;
   const row = (data && data[0]) ? data[0] : null;
   return row ? fromDb(table, row) : null;
+}
+
+// ====== NOVO: GET MANY (busca vários IDs de uma vez) ======
+async function supaGetMany(table, ids){
+  const c = ensureClient();
+  const arr = Array.isArray(ids) ? ids.map(n => Number(n)).filter(Boolean) : [];
+  if (!arr.length) return [];
+
+  const { data, error } = await c.from(table).select("*").in("id", arr);
+  if (error) throw error;
+
+  return (data || []).map(r => fromDb(table, r));
 }
 
 async function supaAdd(table, rec){
@@ -475,10 +548,20 @@ init: async () => {
     await DB.init();
     return supaList(store, query);
   },
+  
+    page: async (store, opts) => {
+    await DB.init();
+    return supaListPage(store, opts);
+  },
 
   get: async (store, id) => {
     await DB.init();
     return supaGet(store, id);
+  },
+  
+    getMany: async (store, ids) => {
+    await DB.init();
+    return supaGetMany(store, ids);
   },
 
   add: async (store, rec) => {

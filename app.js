@@ -1535,8 +1535,20 @@ async function loadHosp(q){
   if (!tbody) return;
   tbody.innerHTML = '';
 
-  // carrega tudo
-  const all = await DB.list('hospedagens');
+  
+    // ✅ Otimização:
+  // - sem busca: carrega só os últimos N (rápido)
+  // - com busca: carrega tudo (pra pesquisa funcionar em 100% dos dados)
+  const LIMITE_SEM_BUSCA = 250;
+
+  let all = [];
+  if (!q) {
+    // pega os mais recentes (por id desc) sem baixar tudo
+    all = await DB.page('hospedagens', { offset: 0, limit: LIMITE_SEM_BUSCA, orderBy: 'id', ascending: false });
+  } else {
+    // busca precisa considerar o banco inteiro
+    all = await DB.list('hospedagens');
+  }
   const clientes = await DB.list('clientes');
   const byCli = Object.fromEntries(clientes.map(c => [c.id, c]));
   const pets = await DB.list('pets');
@@ -2145,8 +2157,19 @@ async function loadCreches(q){
   if (!tbody) return;
   tbody.innerHTML = '';
 
-  // todas as agendas de creche
-  const todas = await DB.list('creches');
+  // ✅ Otimização:
+  // - sem busca: carrega só os últimos N (rápido)
+  // - com busca: carrega tudo (pra pesquisa funcionar em 100% dos dados)
+  const LIMITE_SEM_BUSCA = 250;
+
+  let todas = [];
+  if (!q) {
+    // pega as mais recentes (por id desc) sem baixar tudo
+    todas = await DB.page('creches', { offset: 0, limit: LIMITE_SEM_BUSCA, orderBy: 'id', ascending: false });
+  } else {
+    // busca precisa considerar o banco inteiro
+    todas = await DB.list('creches');
+  }
 
   // mapas de clientes e pets para pegar nomes
   const clientes = await DB.list('clientes');
@@ -2445,14 +2468,41 @@ if (!document.getElementById('tutor_overlay')) {
 
   let start = new Date();
   function weekStart(d){ const x=new Date(d); return new Date(x.getFullYear(),x.getMonth(),x.getDate()); }
-  async function paintWeek(){
-    const begin = weekStart(start);
-    const days = []; for(let i=0;i<7;i++){ days.push(new Date(begin.getTime()+i*86400000)); }
-    const html = await agendaHtml(days[0], days[6]);
-    document.getElementById('ck_list').innerHTML = html;
-    bindCheckButtons();
-    updatePendenciasAlert();
+async function paintWeek(){
+  console.error('DEBUG W1: paintWeek entrou');
+
+  const begin = weekStart(start);
+  const days = []; for(let i=0;i<7;i++){ days.push(new Date(begin.getTime()+i*86400000)); }
+
+  const html = await agendaHtml(days[0], days[6]);
+
+  console.error('DEBUG W2: agendaHtml gerou HTML len=', (html || '').length);
+
+  document.getElementById('ck_list').innerHTML = html;
+
+  console.error('DEBUG W3: ck_list atualizado no DOM');
+
+  bindCheckButtons();
+  updatePendenciasAlert();
+}
+    
+	async function refreshAgendaUI(){
+    // repinta a semana atual
+    await paintWeek();
+    await updatePendenciasAlert();
+
+    // se a visão mensal estiver aberta, repinta também
+    if (monthlyLoaded && typeof repaintMonth === 'function') {
+      await repaintMonth();
+      await updatePendenciasAlert();
+    }
   }
+  
+  window.refreshAgendaUI = refreshAgendaUI;
+  
+  // ✅ deixa disponível fora do renderCheckin (abrirPagamento / ajustarPagamento)
+window.refreshAgendaUI = refreshAgendaUI;
+  
   document.getElementById('ck_prev').onclick = ()=>{ start = new Date(start.getTime()-7*86400000); paintWeek(); };
   document.getElementById('ck_next').onclick = ()=>{ start = new Date(start.getTime()+7*86400000); paintWeek(); };
   document.getElementById('ck_resumo_btn').onclick = openResumoAgendamentos;
@@ -2498,32 +2548,124 @@ if (!document.getElementById('tutor_overlay')) {
     document.getElementById('mo_next').onclick = ()=>{ current = new Date(current.getFullYear(), current.getMonth()+1, 1); paintMonth(); };
     paintMonth();
   }
+  
+  // ✅ Refresh global da agenda (sem precisar F5)
+  // - Repinta a semana (ck_list)
+  // - Se a visão mensal estiver aberta, repinta também (mo_days)
+  // - Mantém a posição do scroll
+window.__refreshCheckin = async () => {
+
+  console.log('DEBUG 4: __refreshCheckin INICIO');
+
+  const y = window.scrollY || document.documentElement.scrollTop || 0;
+
+  await paintWeek();
+
+  console.log('DEBUG 5: paintWeek FINALIZOU');
+
+  const moDays = document.getElementById('mo_days');
+  if (moDays && typeof repaintMonth === 'function') {
+    await repaintMonth();
+    console.log('DEBUG 6: repaintMonth FINALIZOU');
+  }
+
+  window.scrollTo(0, y);
+
+  console.log('DEBUG 7: __refreshCheckin FINAL');
+};
 
   
 function bindCheckButtons(){
   // Check-in
   document.querySelectorAll('[data-checkin]').forEach(b=>{
-    b.onclick = ()=>{
-      const [kind, idStr] = b.getAttribute('data-checkin').split('|');
-      abrirPagamento('checkin', kind, Number(idStr));
-    };
+b.onclick = async ()=>{
+  if (b.disabled) return;
+  b.disabled = true;
+  const txt = b.textContent;
+  b.textContent = 'Salvando...';
+
+try {
+  const [kind, idStr] = b.getAttribute('data-checkin').split('|');
+  await abrirPagamento('checkin', kind, Number(idStr));
+
+  // ✅ 1) Tenta repintar a agenda (se funcionar, os botões somem pela regra do status)
+  if (typeof window.__refreshCheckin === 'function') {
+    await window.__refreshCheckin();
+  } else if (typeof window.refreshAgendaUI === 'function') {
+    await window.refreshAgendaUI();
+  } else {
+    await renderCheckin();
+  }
+
+  // ✅ 2) Fallback "à prova de bala": remove o botão clicado na hora
+  // (mesmo se por algum motivo o repaint não refletir)
+  if (b && b.isConnected) {
+    b.remove();
+  }
+} finally {
+  // se a tela repintou, esse botão nem existe mais;
+  // se não repintou, voltamos o estado normal
+  if (b && b.isConnected) {
+    b.disabled = false;
+    b.textContent = txt;
+  }
+}
+};
   });
 
   // Check-out
   document.querySelectorAll('[data-checkout]').forEach(b=>{
-    b.onclick = ()=>{
-      const [kind, idStr] = b.getAttribute('data-checkout').split('|');
-      abrirPagamento('checkout', kind, Number(idStr));
-    };
+b.onclick = async ()=>{
+  if (b.disabled) return;
+  b.disabled = true;
+  const txt = b.textContent;
+  b.textContent = 'Salvando...';
+
+try {
+  const [kind, idStr] = b.getAttribute('data-checkout').split('|');
+  await abrirPagamento('checkout', kind, Number(idStr));
+
+  // ✅ 1) Tenta repintar a agenda
+  if (typeof window.__refreshCheckin === 'function') {
+    await window.__refreshCheckin();
+  } else if (typeof window.refreshAgendaUI === 'function') {
+    await window.refreshAgendaUI();
+  } else {
+    await renderCheckin();
+  }
+
+  // ✅ 2) Fallback: remove o botão clicado
+  if (b && b.isConnected) {
+    b.remove();
+  }
+} finally {
+  if (b && b.isConnected) {
+    b.disabled = false;
+    b.textContent = txt;
+  }
+}
+};
   });
 
   // Ajuste de pagamento
-  document.querySelectorAll('[data-ajuste]').forEach(b=>{
-    b.onclick = ()=>{
-      const [kind, idStr] = b.getAttribute('data-ajuste').split('|');
-      ajustarPagamento(kind, Number(idStr));
-    };
-  });
+document.querySelectorAll('[data-ajuste]').forEach(b=>{
+  b.onclick = async ()=>{
+    const [kind, idStr] = b.getAttribute('data-ajuste').split('|');
+    await ajustarPagamento(kind, Number(idStr));
+
+    // ✅ tenta repintar
+    if (typeof window.__refreshCheckin === 'function') {
+      await window.__refreshCheckin();
+    } else if (typeof window.refreshAgendaUI === 'function') {
+      await window.refreshAgendaUI();
+    } else {
+      await renderCheckin();
+    }
+
+    // fallback: remove botão de ajuste clicado
+    if (b && b.isConnected) b.remove();
+  };
+});
   
   // Abrir ficha do pet (modal)
   document.querySelectorAll('.pet-link').forEach(a=>{
@@ -3767,6 +3909,7 @@ async function abrirPagamento(tipo, kind, refId){
   let pay = todosPag.find(p => p.refKind === kind && p.refId === refId);
 
   const hoje = new Date().toISOString().slice(0, 10);
+try {
   if (!pay) {
     pay = {
       refKind:   kind,
@@ -3774,18 +3917,18 @@ async function abrirPagamento(tipo, kind, refId){
       valor:     novoTotalPago,
       metodo:    (tipo === 'checkin' ? 'checkin' : 'checkout'),
       data:      hoje,
-      tipoUltimo: tipo,
-      percUltimo: null
     };
     await DB.add('pagamentos', pay);
   } else {
     pay.valor      = novoTotalPago;
     pay.metodo     = (tipo === 'checkin' ? 'checkin' : 'checkout');
     pay.data       = hoje;
-    pay.tipoUltimo = tipo;
-    pay.percUltimo = null;
     await DB.put('pagamentos', pay);
   }
+  } catch (e) {
+  console.error('ERRO salvando pagamentos:', e);
+  toast('Salvou o check-in/out, mas falhou salvar em Pagamentos (ver console).', false);
+}
 
   // 5) Log bonitinho
   await DB.add('logs', {
@@ -3796,8 +3939,26 @@ async function abrirPagamento(tipo, kind, refId){
     note: `${kind} #${refId} — recebido agora ${fmtMoney(valorPagoAgora)} — total pago ${fmtMoney(novoTotalPago)}`
   });
 
-  toast(`${tipo === 'checkin' ? 'Check-in' : 'Check-out'} registrado`);
-  renderCheckin();
+toast(`${tipo === 'checkin' ? 'Check-in' : 'Check-out'} registrado`);
+
+console.error('DEBUG A: salvar terminou, status que eu acabei de setar =', rec.status, 'coll=', coll, 'id=', rec.id);
+
+// confirmação no banco (pega direto por id)
+const fresh = await DB.get(coll, refId);
+console.error('DEBUG B: status vindo do DB.get logo após salvar =', fresh && fresh.status);
+
+// dá um micro tempo pro Supabase refletir (muito raro, mas elimina 100% dúvida)
+await new Promise(r => setTimeout(r, 200));
+
+console.error('DEBUG C: chamando refresh... window.__refreshCheckin =', typeof window.__refreshCheckin);
+
+if (typeof window.__refreshCheckin === 'function') {
+  await window.__refreshCheckin();
+  console.error('DEBUG D: refresh finalizou');
+} else {
+  await renderCheckin();
+  console.error('DEBUG D: renderCheckin finalizou');
+}
 }
 
 async function ajustarPagamento(kind, refId){
@@ -3836,6 +3997,7 @@ async function ajustarPagamento(kind, refId){
   let pay = todosPag.find(p => p.refKind === kind && p.refId === refId);
 
   const hoje = new Date().toISOString().slice(0, 10);
+  try {
   if (!pay) {
     pay = {
       refKind:   kind,
@@ -3843,17 +4005,17 @@ async function ajustarPagamento(kind, refId){
       valor:     novoTotalPago,
       metodo:    'ajuste',
       data:      hoje,
-      tipoUltimo: 'ajuste',
-      percUltimo: null
     };
     await DB.add('pagamentos', pay);
   } else {
     pay.valor      = novoTotalPago;
     pay.metodo     = 'ajuste';
     pay.data       = hoje;
-    pay.tipoUltimo = 'ajuste';
-    pay.percUltimo = null;
     await DB.put('pagamentos', pay);
+	}
+	} catch (e) {
+  console.error('ERRO salvando pagamentos (ajuste):', e);
+  toast('Ajuste aplicado, mas falhou salvar em Pagamentos (ver console).', false);
   }
 
   // 4) Log
@@ -3865,8 +4027,14 @@ async function ajustarPagamento(kind, refId){
     note: `${kind} #${refId} — ajuste para total pago ${fmtMoney(novoTotalPago)}`
   });
 
-  toast('Pagamento ajustado');
-  renderCheckin();
+toast('Pagamento ajustado');
+
+// ✅ Atualiza a tela na hora (sem F5)
+if (typeof window.__refreshCheckin === 'function') {
+  await window.__refreshCheckin();
+} else {
+  await renderCheckin();
+}
 }
 
 
@@ -4014,33 +4182,55 @@ async function loadPagamentos(inicio = null, fim = null, resetInputs = false){
     }
   }
 
-  // Filtra pelo intervalo de datas do pagamento
-  const items = Object.values(grouped)
-    .filter(p => {
-      if (!p.data) return false;
-      const d = String(p.data);
-      return d >= dataIni && d <= dataFim;
-    })
-    .sort((a,b)=>String(b.data||'').localeCompare(String(a.data||'')));
+// ====== Agora sim: cria "items" a partir do grouped e filtra por período ======
+const items = Object.values(grouped)
+  .filter(p => {
+    const d = String(p.data || '');
+    return d >= dataIni && d <= dataFim;
+  })
+  .sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')) || ((b.id || 0) - (a.id || 0)));
 
-  const [clientes, pets, hospedagens, creches] = await Promise.all([
-    DB.list('clientes'),
-    DB.list('pets'),
-    DB.list('hospedagens'),
-    DB.list('creches')
-  ]);
+// Se não tiver nada no período, já mostra totais zerados e sai
+if (!items.length) {
+  if (elTotHosp) elTotHosp.textContent = fmtMoney(0);
+  if (elTotCre) elTotCre.textContent = fmtMoney(0);
+  if (elTotGeral) elTotGeral.textContent = fmtMoney(0);
+  return;
+}
 
-  const byCli = Object.fromEntries(clientes.map(c => [c.id, c]));
-  const byPet = Object.fromEntries(pets.map(p => [p.id, p]));
-  const byHosp = Object.fromEntries(hospedagens.map(h => [h.id, h]));
-  const byCre = Object.fromEntries(creches.map(c => [c.id, c]));
+// Clientes e pets pode continuar pegando "tudo" (normalmente é bem leve)
+const [clientes, pets] = await Promise.all([
+  DB.list('clientes'),
+  DB.list('pets'),
+]);
+
+const byCli = Object.fromEntries(clientes.map(c => [c.id, c]));
+const byPet = Object.fromEntries(pets.map(p => [p.id, p]));
+
+// Pega apenas as hospedagens/creches necessárias (por ID), COM BASE EM "items"
+const hospIds = [...new Set(
+  items.filter(p => (p.refKind || '') === 'hospedagem').map(p => Number(p.refId || 0)).filter(Boolean)
+)];
+const crecheIds = [...new Set(
+  items.filter(p => (p.refKind || '') === 'creche').map(p => Number(p.refId || 0)).filter(Boolean)
+)];
+
+// Busca em lote (bem mais leve do que DB.list de tudo)
+const [hospedagensNeed, crechesNeed] = await Promise.all([
+  hospIds.length ? DB.getMany('hospedagens', hospIds) : Promise.resolve([]),
+  crecheIds.length ? DB.getMany('creches', crecheIds) : Promise.resolve([]),
+]);
+
+const byHosp = Object.fromEntries(hospedagensNeed.map(h => [h.id, h]));
+const byCre  = Object.fromEntries(crechesNeed.map(c => [c.id, c]));
 
   let totHosp = 0;
   let totCre = 0;
 
   for (const p of items) {
     const isHosp = (p.refKind === 'hospedagem');
-    const rec = isHosp ? byHosp[p.refId] : byCre[p.refId];
+    const rid = Number(p.refId || 0);
+const rec = isHosp ? byHosp[rid] : byCre[rid];
     if (!rec) continue;
 
     const tutor = byCli[rec.tutorId]?.nome || (`Tutor #${rec.tutorId}`);
@@ -4095,24 +4285,98 @@ async function receberPagamento(kind, refId){
 }
 
 // ==== LOGS ====
+let __logsOffset = 0;
+let __logsQuery = '';
+const __LOGS_PAGE = 200;
+
 async function renderLogs(){
   const view = document.getElementById('view');
   view.innerHTML = `
   <div class="panel">
-    <div class="flex"><h2>Logs do Sistema</h2><div class="right"></div></div>
-    <div class="list-scroll"><table><thead><tr>
-      <th>Quando</th><th>Ação</th><th>Entidade</th><th>ID</th><th>Nota</th>
-    </tr></thead><tbody id="log_tbody"></tbody></table></div>
+    <div class="flex">
+      <h2>Logs do Sistema</h2>
+      <div class="right" style="display:flex; gap:8px; align-items:center;">
+        <input id="log_q" placeholder="Buscar (ação, entidade, nota)..." style="min-width:240px" />
+        <button class="btn btn-outline" id="log_search">Buscar</button>
+        <button class="btn btn-ghost" id="log_clear">Limpar</button>
+      </div>
+    </div>
+
+    <div class="list-scroll">
+      <table>
+        <thead><tr>
+          <th>Quando</th><th>Ação</th><th>Entidade</th><th>ID</th><th>Nota</th>
+        </tr></thead>
+        <tbody id="log_tbody"></tbody>
+      </table>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; margin-top:10px;">
+      <button class="btn btn-outline" id="log_more">Carregar mais</button>
+    </div>
   </div>`;
-  loadLogs();
+
+  // binds
+  const inp = document.getElementById('log_q');
+  const btnSearch = document.getElementById('log_search');
+  const btnClear = document.getElementById('log_clear');
+  const btnMore = document.getElementById('log_more');
+
+  if (btnSearch) btnSearch.onclick = () => {
+    __logsQuery = (inp?.value || '').trim();
+    loadLogs(true);
+  };
+
+  if (btnClear) btnClear.onclick = () => {
+    __logsQuery = '';
+    if (inp) inp.value = '';
+    loadLogs(true);
+  };
+
+  if (inp) inp.onkeydown = (e) => {
+    if (e.key === 'Enter') {
+      __logsQuery = (inp.value || '').trim();
+      loadLogs(true);
+    }
+  };
+
+  if (btnMore) btnMore.onclick = () => loadLogs(false);
+
+  // primeira carga
+  loadLogs(true);
 }
-async function loadLogs(){
-  const tbody = document.getElementById('log_tbody'); tbody.innerHTML='';
-  const list = await DB.list('logs');
-  for (const l of list.sort((a,b)=>String(b.at).localeCompare(String(a.at)))) {
+
+async function loadLogs(reset){
+  const tbody = document.getElementById('log_tbody');
+  const btnMore = document.getElementById('log_more');
+  if (!tbody) return;
+
+  if (reset) {
+    tbody.innerHTML = '';
+    __logsOffset = 0;
+  }
+
+  // Pagina do banco (ordenando pelo "at" desc)
+  const page = await DB.page('logs', {
+    limit: __LOGS_PAGE,
+    offset: __logsOffset,
+    orderBy: 'at',
+    ascending: false,
+    query: __logsQuery
+  });
+
+  __logsOffset += page.length;
+
+  for (const l of page) {
     const tr = document.createElement('tr');
     tr.innerHTML = `<td class="mono">${l.at}</td><td>${l.action}</td><td>${l.entity}</td><td>${l.entityId||''}</td><td>${l.note||''}</td>`;
     tbody.appendChild(tr);
+  }
+
+  // Se veio menos que o limite, não tem mais para carregar
+  if (btnMore) {
+    btnMore.disabled = (page.length < __LOGS_PAGE);
+    btnMore.textContent = btnMore.disabled ? 'Sem mais logs' : 'Carregar mais';
   }
 }
 
