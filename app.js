@@ -27,38 +27,40 @@ document.addEventListener('DOMContentLoaded', async () => {
 // EDGE FUNCTIONS - Contratos
 // ================================
 const CONTRACT_SUPABASE_URL = "https://siksojcleumugquntrgc.supabase.co";
-const CONTRACT_FN_BASE = CONTRACT_SUPABASE_URL + "/functions/v1";
+// ⚠️ Copie do seu db.js (SUPABASE_ANON_KEY)
+const CONTRACT_ANON_KEY = "sb_publishable_6KMGqcdP2m5A8vx46Ew--g_GU8giA2V";
 
-// chama uma Edge Function com seu login atual (JWT)
-async function callEdgeFn(name, payload){
-  // ✅ getSession no supabase-js v2 geralmente retorna { data: { session }, error }
-  const res = await DB.auth.getSession();
+let __contractClient = null;
 
-  // pega JWT em vários formatos possíveis
-  const jwt =
-    res?.data?.session?.access_token ||
-    res?.session?.access_token ||
-    res?.access_token ||
-    null;
+function ensureContractClient(){
+  if (__contractClient) return __contractClient;
 
-  if (!jwt || typeof jwt !== "string") {
-    throw new Error("Sem sessão válida (faça logout e login novamente).");
+  if (!window.supabase || !window.supabase.createClient) {
+    throw new Error("Supabase SDK não carregou. Verifique se o index.html está incluindo o script do Supabase.");
   }
 
-  const r = await fetch(`${CONTRACT_FN_BASE}/${name}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer " + jwt
-    },
-    body: JSON.stringify(payload || {})
+  __contractClient = window.supabase.createClient(CONTRACT_SUPABASE_URL, CONTRACT_ANON_KEY, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    }
   });
 
-  const data = await r.json().catch(()=> ({}));
+  return __contractClient;
+}
 
-  if (!r.ok) {
-    const msg = data?.error || data?.message || JSON.stringify(data) || "Erro desconhecido";
-    throw new Error(`(${r.status}) ${msg}`);
+async function callEdgeFn(name, payload){
+  const c = ensureContractClient();
+
+  const { data, error } = await c.functions.invoke(name, {
+    body: payload || {}
+  });
+
+  if (error) {
+    // error pode vir como objeto, então deixo bem legível:
+    const msg = error?.message || error?.error || JSON.stringify(error);
+    throw new Error(msg);
   }
 
   return data;
