@@ -1563,12 +1563,6 @@ const tutorId = Number(selectedHospTutorId);
     };
 
     const id = await DB.add('hospedagens', rec);
-	try {
-  await gerarLinkContrato("hospedagem", id);
-} catch (e) {
-  console.warn("Falha ao gerar contrato:", e);
-  toast("Hospedagem salva, mas não gerou link do contrato.", false);
-}
     await DB.add('logs', {
       at: new Date().toISOString(),
       action: '...Id',
@@ -1576,7 +1570,17 @@ const tutorId = Number(selectedHospTutorId);
       entityId: id,
       note: `Tutor #${tutorId} Pets ${rec.petIds.join(',')}`,
     });
+	
     toast('Hospedagem salva');
+	
+	// ✅ gera link do contrato automaticamente
+try {
+  await gerarLinkContrato("hospedagem", id);
+} catch (e) {
+  console.warn("Falha ao gerar contrato:", e);
+  toast("Hospedagem salva, mas não gerou link do contrato.", false);
+}
+
     renderHosp();
   };
 
