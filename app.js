@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     // 1) garante login + conexão com Supabase antes de abrir o sistema
     await DB.init();
+	
 
     // 2) agora pode carregar a tela normalmente
     await renderView('checkin');
@@ -21,6 +22,53 @@ document.addEventListener('DOMContentLoaded', async () => {
     toast('Falha ao iniciar (login/banco). Veja o console.', false);
   }
 });
+
+// ================================
+// EDGE FUNCTIONS - Contratos
+// ================================
+const CONTRACT_SUPABASE_URL = "https://siksojcleumugquntrgc.supabase.co";
+const CONTRACT_FN_BASE = CONTRACT_SUPABASE_URL + "/functions/v1";
+
+// chama uma Edge Function com seu login atual (JWT)
+async function callEdgeFn(name, payload){
+  const session = await DB.auth.getSession();
+  const jwt = session?.access_token;
+  if (!jwt) throw new Error("Sem sessão (faça login novamente).");
+
+  const r = await fetch(`${CONTRACT_FN_BASE}/${name}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + jwt
+    },
+    body: JSON.stringify(payload || {})
+  });
+
+  const data = await r.json().catch(()=> ({}));
+  if (!r.ok) throw new Error(data.error || ("Falha na função: " + name));
+  return data;
+}
+
+async function gerarLinkContrato(kind, refId){
+  const out = await callEdgeFn("contract-create", { kind, refId });
+
+  // Mostra o link em texto (uiConfirm não aceita HTML)
+  const msg =
+`Link do contrato (expira em 7 dias):
+
+${out.url}
+
+Expira em: ${new Date(out.expiresAt).toLocaleString()}
+
+Deseja copiar o link agora?`;
+
+  const ok = await uiConfirm(msg, "Contrato gerado ✅", { okText: "Copiar link", cancelText: "Fechar" });
+
+  if (ok) {
+    try { await navigator.clipboard.writeText(out.url); } catch(e) {}
+    toast("Link copiado!");
+  }
+}
 
 
 // Helpers
@@ -1515,6 +1563,12 @@ const tutorId = Number(selectedHospTutorId);
     };
 
     const id = await DB.add('hospedagens', rec);
+	try {
+  await gerarLinkContrato("hospedagem", id);
+} catch (e) {
+  console.warn("Falha ao gerar contrato:", e);
+  toast("Hospedagem salva, mas não gerou link do contrato.", false);
+}
     await DB.add('logs', {
       at: new Date().toISOString(),
       action: '...Id',
