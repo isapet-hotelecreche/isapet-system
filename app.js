@@ -53,17 +53,43 @@ function ensureContractClient(){
 async function callEdgeFn(name, payload){
   const c = ensureContractClient();
 
-  const { data, error } = await c.functions.invoke(name, {
-    body: payload || {}
-  });
+  // pega a sessão real do mesmo client que chama a function
+  const sessRes = await c.auth.getSession();
+  const jwt = sessRes?.data?.session?.access_token;
 
-  if (error) {
-    // error pode vir como objeto, então deixo bem legível:
-    const msg = error?.message || error?.error || JSON.stringify(error);
-    throw new Error(msg);
+  if (!jwt) {
+    throw new Error("Sem sessão no Supabase (recarregue o site e faça login novamente).");
   }
 
-  return data;
+  const url = `${CONTRACT_SUPABASE_URL}/functions/v1/${name}`;
+
+  const r = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + jwt
+    },
+    body: JSON.stringify(payload || {})
+  });
+
+  // tenta ler JSON; se não der, lê texto
+  let body;
+  let text = "";
+  try {
+    body = await r.json();
+  } catch (e) {
+    text = await r.text().catch(()=> "");
+  }
+
+  if (!r.ok) {
+    const msg =
+      (body && (body.error || body.message)) ? (body.error || body.message) :
+      (body ? JSON.stringify(body) : (text || "Erro desconhecido"));
+
+    throw new Error(`(${r.status}) ${msg}`);
+  }
+
+  return body;
 }
 
 async function gerarLinkContrato(kind, refId){
