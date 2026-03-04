@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Contrato - Isa Pet</title>
+  <style>
+    :root{
+      --bg:#0b0b0c;
+      --card:#141416;
+      --text:#f2f2f2;
+      --muted:#b9b9b9;
+      --line:#2a2a2f;
+      --ok:#2ecc71;
+      --warn:#f1c40f;
+      --err:#ff5c5c;
+    }
+    body{
+      margin:0;
+      font-family: Arial, Helvetica, sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
+    .wrap{
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+    .top{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom: 12px;
+    }
+    .brand{
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing:.2px;
+    }
+    .pill{
+      border:1px solid var(--line);
+      color:var(--muted);
+      padding:6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .card{
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px;
+      margin-top: 10px;
+    }
+    .status{
+      color:var(--muted);
+      line-height:1.35;
+    }
+    .status strong{ color: var(--text); }
+    .status.ok{ color: #c9f7d9; }
+    .status.warn{ color: #fff1b8; }
+    .status.err{ color: #ffd0d0; }
+
+    pre{
+      margin:0;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      background: #0f0f12;
+      border:1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+      font-size: 14px;
+      line-height: 1.45;
+      color: var(--text);
+    }
+    .row{
+      display:flex;
+      gap:10px;
+      flex-wrap: wrap;
+    }
+    .col{
+      flex: 1;
+      min-width: 220px;
+    }
+    input{
+      width:100%;
+      box-sizing: border-box;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: #0f0f12;
+      color: var(--text);
+      outline: none;
+    }
+    input::placeholder{ color:#808089; }
+    label{
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+      margin: 10px 0 0;
+      color: var(--text);
+    }
+    label input[type="checkbox"]{
+      width:18px;
+      height:18px;
+      margin-top:2px;
+      accent-color: #6ee7b7;
+    }
+    button{
+      padding: 11px 14px;
+      border-radius: 12px;
+      border: 0;
+      cursor: pointer;
+      font-weight: 700;
+      background: #6ee7b7;
+      color: #0b0b0c;
+      width: 100%;
+    }
+    button:disabled{
+      opacity:.5;
+      cursor:not-allowed;
+    }
+    .small{
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 8px;
+      line-height: 1.35;
+    }
+    .divider{
+      height:1px;
+      background: var(--line);
+      margin: 12px 0;
+    }
+    .center{
+      text-align:center;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+
+    <div class="top">
+      <div class="brand">Isa Pet Hotel & Creche</div>
+      <div class="pill" id="pill">Contrato</div>
+    </div>
+
+    <div class="card">
+      <div id="status" class="status">Carregando contrato…</div>
+    </div>
+
+    <div class="card" id="cardContrato" style="display:none">
+      <pre id="texto"></pre>
+      <div class="small" id="meta"></div>
+    </div>
+
+    <div class="card" id="cardAceite" style="display:none">
+      <div class="row">
+        <div class="col">
+          <input id="nome" placeholder="Seu nome (opcional)" />
+        </div>
+        <div class="col">
+          <input id="doc" placeholder="CPF (opcional)" />
+        </div>
+      </div>
+
+      <label>
+        <input id="chk" type="checkbox" />
+        <div>
+          <div><strong>Li e concordo</strong> com o contrato acima.</div>
+          <div class="small">Ao confirmar, o aceite será registrado com data e hora.</div>
+        </div>
+      </label>
+
+      <div class="divider"></div>
+
+      <button id="btn" disabled>Confirmar aceite</button>
+      <div class="small center" id="hint"></div>
+    </div>
+
+  </div>
+
+  <script>
+    // ✅ Ajuste só se você trocar de projeto
+    const SUPABASE_URL = "https://siksojcleumugquntrgc.supabase.co";
+    const FN_BASE = SUPABASE_URL + "/functions/v1";
+
+    function qs(name){
+      return new URLSearchParams(location.search).get(name);
+    }
+
+    function setStatus(msg, type){
+      const el = document.getElementById("status");
+      el.className = "status" + (type ? " " + type : "");
+      el.innerHTML = msg;
+    }
+
+    function kindLabel(kind, text){
+      // tenta um label mais humano
+      if(kind === "creche") return "CRECHE";
+      if(kind === "adaptacao") return "ADAPTAÇÃO";
+      if(kind === "hospedagem") return "HOSPEDAGEM";
+      // fallback: tenta deduzir pelo texto
+      const t = (text || "").toLowerCase();
+      if(t.includes("adapta")) return "ADAPTAÇÃO";
+      if(t.includes("creche")) return "CRECHE";
+      if(t.includes("hosped")) return "HOSPEDAGEM";
+      return "CONTRATO";
+    }
+
+    async function load(){
+      const token = qs("t");
+      if(!token){
+        setStatus("Link inválido: token ausente.", "err");
+        return;
+      }
+
+      // 1) Busca contrato pelo token
+      const r = await fetch(FN_BASE + "/contract-get?t=" + encodeURIComponent(token));
+      const data = await r.json().catch(()=> ({}));
+
+      if(!r.ok){
+        setStatus((data && data.error) ? data.error : "Erro ao carregar contrato.", "err");
+        return;
+      }
+
+      // 2) Preenche tela
+      const label = kindLabel(data.kind, data.contract_text);
+      document.getElementById("pill").textContent = label;
+
+      document.getElementById("cardContrato").style.display = "block";
+      document.getElementById("texto").textContent = data.contract_text || "";
+
+      const expStr = data.expires_at ? new Date(data.expires_at).toLocaleString() : "";
+      const meta = [];
+      if(data.contract_version) meta.push("Versão: " + data.contract_version);
+      if(data.contract_hash) meta.push("Hash: " + data.contract_hash.slice(0, 12) + "…");
+      if(expStr) meta.push("Expira em: " + expStr);
+      document.getElementById("meta").textContent = meta.join(" | ");
+
+      // 3) Estados
+      if(data.status === "expirado"){
+        setStatus("<strong>Este link expirou.</strong> Solicite um novo link ao Isa Pet.", "warn");
+        return;
+      }
+      if(data.status === "aceito"){
+        const acc = data.accepted_at ? new Date(data.accepted_at).toLocaleString() : "";
+        setStatus("<strong>Contrato já aceito.</strong>" + (acc ? (" Aceito em: " + acc) : ""), "ok");
+        return;
+      }
+
+      // pendente
+      setStatus("Confira o contrato acima e confirme o aceite abaixo.", "");
+      document.getElementById("cardAceite").style.display = "block";
+
+      const chk = document.getElementById("chk");
+      const btn = document.getElementById("btn");
+      const hint = document.getElementById("hint");
+
+      function refreshBtn(){
+        btn.disabled = !chk.checked;
+        hint.textContent = chk.checked ? "" : "Marque a caixa para liberar o botão.";
+      }
+      chk.addEventListener("change", refreshBtn);
+      refreshBtn();
+
+      btn.onclick = async ()=>{
+        if(btn.disabled) return;
+
+        btn.disabled = true;
+        btn.textContent = "Enviando…";
+
+        const name = document.getElementById("nome").value.trim();
+        const doc  = document.getElementById("doc").value.trim();
+
+        const r2 = await fetch(FN_BASE + "/contract-accept", {
+          method:"POST",
+          headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify({ token, name, doc })
+        });
+
+        const out = await r2.json().catch(()=> ({}));
+
+        if(!r2.ok){
+          setStatus((out && out.error) ? out.error : "Não foi possível confirmar.", "err");
+          btn.textContent = "Confirmar aceite";
+          refreshBtn();
+          return;
+        }
+
+        setStatus("<strong>Aceite registrado com sucesso.</strong> Obrigado!", "ok");
+        document.getElementById("cardAceite").style.display = "none";
+      };
+    }
+
+    load();
+  </script>
+</body>
+</html>
