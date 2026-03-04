@@ -44,8 +44,12 @@ async function callEdgeFn(name, payload){
     body: JSON.stringify(payload || {})
   });
 
-  const data = await r.json().catch(()=> ({}));
-  if (!r.ok) throw new Error(data.error || ("Falha na função: " + name));
+const data = await r.json().catch(()=> ({}));
+
+if (!r.ok) {
+  const msg = data?.error || data?.message || JSON.stringify(data) || "Erro desconhecido";
+  throw new Error(`(${r.status}) ${msg}`);
+}
   return data;
 }
 
@@ -1578,7 +1582,7 @@ try {
   await gerarLinkContrato("hospedagem", id);
 } catch (e) {
   console.warn("Falha ao gerar contrato:", e);
-  toast("Hospedagem salva, mas não gerou link do contrato.", false);
+  toast("Hospedagem salva, mas não gerou link: " + (e?.message || e), false);
 }
 
     renderHosp();
