@@ -31,9 +31,19 @@ const CONTRACT_FN_BASE = CONTRACT_SUPABASE_URL + "/functions/v1";
 
 // chama uma Edge Function com seu login atual (JWT)
 async function callEdgeFn(name, payload){
-  const session = await DB.auth.getSession();
-  const jwt = session?.access_token;
-  if (!jwt) throw new Error("Sem sessão (faça login novamente).");
+  // ✅ getSession no supabase-js v2 geralmente retorna { data: { session }, error }
+  const res = await DB.auth.getSession();
+
+  // pega JWT em vários formatos possíveis
+  const jwt =
+    res?.data?.session?.access_token ||
+    res?.session?.access_token ||
+    res?.access_token ||
+    null;
+
+  if (!jwt || typeof jwt !== "string") {
+    throw new Error("Sem sessão válida (faça logout e login novamente).");
+  }
 
   const r = await fetch(`${CONTRACT_FN_BASE}/${name}`, {
     method: "POST",
@@ -44,12 +54,13 @@ async function callEdgeFn(name, payload){
     body: JSON.stringify(payload || {})
   });
 
-const data = await r.json().catch(()=> ({}));
+  const data = await r.json().catch(()=> ({}));
 
-if (!r.ok) {
-  const msg = data?.error || data?.message || JSON.stringify(data) || "Erro desconhecido";
-  throw new Error(`(${r.status}) ${msg}`);
-}
+  if (!r.ok) {
+    const msg = data?.error || data?.message || JSON.stringify(data) || "Erro desconhecido";
+    throw new Error(`(${r.status}) ${msg}`);
+  }
+
   return data;
 }
 
