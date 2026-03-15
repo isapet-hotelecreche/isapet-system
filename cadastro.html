@@ -1,4 +1,4 @@
-<!-- contrato.html v3.11 (patched) -->
+<!-- cadastro.html v3.13 (patched) -->
 <!doctype html>
 <html lang="pt-br">
 <head>
@@ -471,6 +471,153 @@
       line-height:1.4;
     }
 
+    .resume-grid{
+      display:grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap:12px;
+      margin-top:12px;
+    }
+
+    .resume-item{
+      border:1px solid #e9defd;
+      border-radius:16px;
+      padding:14px;
+      background:linear-gradient(180deg, #ffffff 0%, #fcfaff 100%);
+      box-shadow:0 4px 12px rgba(91,62,168,.05);
+    }
+
+    .resume-label{
+      font-size:11px;
+      font-weight:900;
+      color:#7c6e9a;
+      text-transform:uppercase;
+      letter-spacing:.5px;
+      margin-bottom:7px;
+    }
+
+    .resume-value{
+      font-size:14px;
+      font-weight:800;
+      color:#2f2447;
+      line-height:1.55;
+      word-break:break-word;
+    }
+
+    .resume-section{
+      margin-top:18px;
+      padding-top:18px;
+      border-top:1px solid #eee5ff;
+    }
+
+    .resume-section:first-child{
+      margin-top:0;
+      padding-top:0;
+      border-top:none;
+    }
+
+    .resume-section-title{
+      font-size:16px;
+      font-weight:900;
+      color:#4f3b86;
+      margin-bottom:12px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+
+    .resume-pet-card{
+      border:1px solid #dccbfd;
+      border-radius:18px;
+      background:linear-gradient(180deg, #fff 0%, #faf7ff 100%);
+      padding:16px;
+      margin-top:14px;
+      box-shadow:0 8px 18px rgba(91,62,168,.06);
+    }
+
+    .resume-pet-head{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-bottom:12px;
+    }
+
+    .resume-pet-title{
+      font-size:16px;
+      font-weight:900;
+      color:#2f2447;
+    }
+
+    .resume-tag{
+      display:inline-flex;
+      align-items:center;
+      padding:6px 12px;
+      border-radius:999px;
+      border:1px solid #ddd6fe;
+      background:#f5f3ff;
+      color:#5b3ea8;
+      font-size:12px;
+      font-weight:900;
+    }
+
+    .resume-list{
+      margin:0;
+      padding-left:18px;
+      color:#374151;
+      font-size:13px;
+      line-height:1.7;
+    }
+
+    .resume-list li + li{
+      margin-top:5px;
+    }
+
+    .resume-badges{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      margin-top:12px;
+    }
+
+    .resume-badge-ok,
+    .resume-badge-no{
+      display:inline-flex;
+      align-items:center;
+      padding:6px 10px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:900;
+      border:1px solid;
+    }
+
+    .resume-badge-ok{
+      background:#ecfdf5;
+      color:#166534;
+      border-color:#bbf7d0;
+    }
+
+    .resume-badge-no{
+      background:#fff7ed;
+      color:#9a3412;
+      border-color:#fed7aa;
+    }
+
+    .resume-block{
+      margin-top:12px;
+      border:1px solid #ebe4ff;
+      border-radius:14px;
+      background:#fff;
+      padding:12px;
+    }
+
+    .resume-block-title{
+      font-size:13px;
+      font-weight:900;
+      color:#5b3ea8;
+      margin-bottom:8px;
+    }
+
     .hidden{
       display:none !important;
     }
@@ -486,6 +633,19 @@
   <div class="wrap">
 
     <div id="successScreen" class="card hidden">
+	
+	      <div class="top" style="margin-bottom:16px;">
+        <div class="brandBox">
+          <img class="logo" src="logo-quadrado-NOVO-HOTEL.jpg" alt="Isa Pet" />
+          <div class="brand">
+            <div class="t1">Isa Pet</div>
+            <div class="t2">Hotel & Creche</div>
+          </div>
+        </div>
+
+        <div class="pill">Pré-cadastro online</div>
+      </div>
+	
       <div class="section-head">
         <div>
           <h2 style="margin:0;">Pré-cadastro enviado com sucesso</h2>
@@ -520,10 +680,22 @@
           Caso precise corrigir alguma informação, entre em contato com a equipe.
         </div>
       </div>
+	  
+	        <div id="successResumo" class="card hidden" style="background:#ffffff; border-color:#e7dbff;">
+        <div class="section-head">
+          <div>
+            <h3 class="section-title">Resumo do pré-cadastro enviado</h3>
+            <div class="section-subtitle">
+              Confira abaixo os dados enviados. Se identificar alguma informação incorreta, entre em contato com a equipe.
+            </div>
+          </div>
 
-      <div class="actions" style="justify-content:center;">
-        <button type="button" class="btn-primary" id="btnVoltarInicio">Voltar ao início</button>
+          <div class="badge-soft">Conferência rápida</div>
+        </div>
+
+        <div id="successResumoBody"></div>
       </div>
+
     </div>
 
     <div class="top">
@@ -714,6 +886,217 @@
         .replaceAll(">","&gt;")
         .replaceAll('"',"&quot;")
         .replaceAll("'","&#039;");
+    }
+	
+	    function textoOuPadrao(v, padrao = "Não informado"){
+      const txt = (v ?? "").toString().trim();
+      return txt || padrao;
+    }
+
+    function boolTexto(v){
+      return v ? "Sim" : "Não";
+    }
+
+    function sexoTexto(v){
+      if (v === "M") return "Macho";
+      if (v === "F") return "Fêmea";
+      return "Não informado";
+    }
+
+    function formatDateBR(dateStr){
+      if (!dateStr) return "Não informado";
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateStr));
+      if (!m) return dateStr;
+      return `${m[3]}/${m[2]}/${m[1]}`;
+    }
+
+    function formatMonthYearBR(month, year){
+      if (!month || !year) return "Não informado";
+      return `${String(month).padStart(2, "0")}/${year}`;
+    }
+
+    function montarResumoTutorHtml(tutor){
+      return `
+        <div class="resume-section">
+          <div class="resume-section-title">📋 Dados do tutor</div>
+
+          <div class="resume-grid">
+            <div class="resume-item">
+              <div class="resume-label">Nome completo</div>
+              <div class="resume-value">${escHtml(textoOuPadrao(tutor?.nome))}</div>
+            </div>
+
+            <div class="resume-item">
+              <div class="resume-label">CPF</div>
+              <div class="resume-value">${escHtml(textoOuPadrao(tutor?.cpf))}</div>
+            </div>
+
+            <div class="resume-item">
+              <div class="resume-label">Telefone</div>
+              <div class="resume-value">${escHtml(textoOuPadrao(tutor?.telefone))}</div>
+            </div>
+
+            <div class="resume-item">
+              <div class="resume-label">E-mail</div>
+              <div class="resume-value">${escHtml(textoOuPadrao(tutor?.email))}</div>
+            </div>
+
+            <div class="resume-item">
+              <div class="resume-label">CEP</div>
+              <div class="resume-value">${escHtml(textoOuPadrao(tutor?.cep))}</div>
+            </div>
+
+            <div class="resume-item">
+              <div class="resume-label">Cidade</div>
+              <div class="resume-value">${escHtml(textoOuPadrao(tutor?.cidade))}</div>
+            </div>
+
+            <div class="resume-item" style="grid-column:1 / -1;">
+              <div class="resume-label">Endereço</div>
+              <div class="resume-value">${escHtml(textoOuPadrao(tutor?.endereco))}</div>
+            </div>
+
+            <div class="resume-item">
+              <div class="resume-label">Contato veterinário</div>
+              <div class="resume-value">${escHtml(textoOuPadrao(tutor?.contatoVet))}</div>
+            </div>
+
+            <div class="resume-item" style="grid-column:1 / -1;">
+              <div class="resume-label">Observações</div>
+              <div class="resume-value">${escHtml(textoOuPadrao(tutor?.observacao))}</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function montarResumoPetHtml(pet, index){
+      const especieOuRaca = [textoOuPadrao(pet?.especie, ""), textoOuPadrao(pet?.raca, "")]
+        .filter(Boolean)
+        .join(" • ") || "Não informado";
+
+      const vacinaViralDetalhe = pet?.vacina_viral
+        ? `${textoOuPadrao(pet?.vacina_viral_tipo)} • ${formatMonthYearBR(pet?.vacina_viral_mes, pet?.vacina_viral_ano)}`
+        : "Não informado";
+
+      const vacinaAntirrabicaDetalhe = pet?.vacina_antirrabica
+        ? formatMonthYearBR(pet?.vacina_antirrabica_mes, pet?.vacina_antirrabica_ano)
+        : "Não informado";
+
+      const antipulgaDetalhe = pet?.antipulga
+        ? `${textoOuPadrao(pet?.antipulga_tipo)} • ${formatMonthYearBR(pet?.antipulga_mes, pet?.antipulga_ano)}`
+        : "Não informado";
+
+      const badges = `
+        <div class="resume-badges">
+          <span class="${pet?.vacina_viral ? "resume-badge-ok" : "resume-badge-no"}">Vacina viral: ${pet?.vacina_viral ? "Sim" : "Não"}</span>
+          <span class="${pet?.vacina_antirrabica ? "resume-badge-ok" : "resume-badge-no"}">Antirrábica: ${pet?.vacina_antirrabica ? "Sim" : "Não"}</span>
+          <span class="${pet?.antipulga ? "resume-badge-ok" : "resume-badge-no"}">Antipulga: ${pet?.antipulga ? "Sim" : "Não"}</span>
+          <span class="${pet?.castrado ? "resume-badge-ok" : "resume-badge-no"}">Castrado: ${pet?.castrado ? "Sim" : "Não"}</span>
+        </div>
+      `;
+
+      return `
+        <div class="resume-pet-card">
+          <div class="resume-pet-head">
+            <div>
+              <div class="resume-pet-title">🐾 Pet ${index + 1}: ${escHtml(textoOuPadrao(pet?.nome))}</div>
+            </div>
+            <div class="resume-tag">${escHtml(textoOuPadrao(pet?.especie))}</div>
+          </div>
+
+          ${badges}
+
+          <div class="resume-grid">
+            <div class="resume-item">
+              <div class="resume-label">Espécie / raça</div>
+              <div class="resume-value">${escHtml(especieOuRaca)}</div>
+            </div>
+
+            <div class="resume-item">
+              <div class="resume-label">Sexo</div>
+              <div class="resume-value">${escHtml(sexoTexto(pet?.sexo))}</div>
+            </div>
+
+            <div class="resume-item">
+              <div class="resume-label">Nascimento</div>
+              <div class="resume-value">${escHtml(formatDateBR(pet?.nascimento))}</div>
+            </div>
+
+            <div class="resume-item">
+              <div class="resume-label">Peso</div>
+              <div class="resume-value">${escHtml(textoOuPadrao(pet?.peso ? `${pet.peso} kg` : ""))}</div>
+            </div>
+
+            <div class="resume-item">
+              <div class="resume-label">Alimentação</div>
+              <div class="resume-value">${escHtml(textoOuPadrao(pet?.alimentacao_tipo))}</div>
+            </div>
+
+            <div class="resume-item" style="grid-column:1 / -1;">
+              <div class="resume-label">Detalhes da alimentação</div>
+              <div class="resume-value">${escHtml(textoOuPadrao(pet?.alimentacao_texto))}</div>
+            </div>
+          </div>
+
+          <div class="resume-block">
+            <div class="resume-block-title">Saúde e cuidados</div>
+            <ul class="resume-list">
+              <li><strong>Alergias:</strong> ${escHtml(pet?.alergias_flag ? textoOuPadrao(pet?.alergias_texto) : "Não informado")}</li>
+              <li><strong>Doenças / condição:</strong> ${escHtml(pet?.doencas_flag ? textoOuPadrao(pet?.doencas_texto) : "Não informado")}</li>
+              <li><strong>Cuidados especiais:</strong> ${escHtml(pet?.cuidados_flag ? textoOuPadrao(pet?.cuidados_texto) : "Não informado")}</li>
+            </ul>
+          </div>
+
+          <div class="resume-block">
+            <div class="resume-block-title">Vacinas e proteção</div>
+            <ul class="resume-list">
+              <li><strong>Vacina viral:</strong> ${escHtml(vacinaViralDetalhe)}</li>
+              <li><strong>Antirrábica:</strong> ${escHtml(vacinaAntirrabicaDetalhe)}</li>
+              <li><strong>Antipulga / coleira:</strong> ${escHtml(antipulgaDetalhe)}</li>
+            </ul>
+          </div>
+        </div>
+      `;
+    }
+
+    function salvarResumoPreCadastro(data){
+      try{
+        sessionStorage.setItem("isa_pet_pre_cadastro_resumo", JSON.stringify(data || {}));
+      }catch(e){}
+    }
+
+    function lerResumoPreCadastro(){
+      try{
+        const raw = sessionStorage.getItem("isa_pet_pre_cadastro_resumo");
+        return raw ? JSON.parse(raw) : null;
+      }catch(e){
+        return null;
+      }
+    }
+
+    function renderSuccessResumo(){
+      const wrap = document.getElementById("successResumo");
+      const body = document.getElementById("successResumoBody");
+      if (!wrap || !body) return;
+
+      const data = lerResumoPreCadastro();
+      if (!data || !data.tutor || !Array.isArray(data.pets) || !data.pets.length){
+        wrap.classList.add("hidden");
+        body.innerHTML = "";
+        return;
+      }
+
+      const tutorHtml = montarResumoTutorHtml(data.tutor);
+      const petsHtml = `
+        <div class="resume-section">
+          <div class="resume-section-title">🐶 Pets enviados</div>
+          ${data.pets.map((pet, index) => montarResumoPetHtml(pet, index)).join("")}
+        </div>
+      `;
+
+      body.innerHTML = tutorHtml + petsHtml;
+      wrap.classList.remove("hidden");
     }
 
     function showStatus(msg, ok){
@@ -1634,6 +2017,7 @@
           return;
         }
 
+        salvarResumoPreCadastro(data);
         window.location.href = "cadastro.html?sucesso=1";
         return;
       }catch(e){
@@ -1716,13 +2100,13 @@
       el.addEventListener("change", updateTutorSummary);
     });
 
-    document.getElementById("btnVoltarInicio")?.addEventListener("click", () => {
-      window.location.href = "cadastro.html";
-    });
-
     if (isSuccessMode()) {
       showSuccessScreen();
+      renderSuccessResumo();
     } else {
+      try{
+        sessionStorage.removeItem("isa_pet_pre_cadastro_resumo");
+      }catch(e){}
       showFormScreen();
       addPetCard();
       updateTutorSummary();
