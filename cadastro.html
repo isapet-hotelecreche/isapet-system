@@ -1,4 +1,4 @@
-<!-- contrato.html v3.8 (patched) -->
+<!-- contrato.html v3.11 (patched) -->
 <!doctype html>
 <html lang="pt-br">
 <head>
@@ -485,6 +485,47 @@
 <body>
   <div class="wrap">
 
+    <div id="successScreen" class="card hidden">
+      <div class="section-head">
+        <div>
+          <h2 style="margin:0;">Pré-cadastro enviado com sucesso</h2>
+          <div class="section-subtitle" style="margin-top:6px;">
+            Recebemos os dados do tutor e do pet com sucesso.
+          </div>
+        </div>
+
+        <div class="badge-soft" style="background:#ecfdf5; border-color:#bbf7d0; color:#166534;">
+          Envio concluído
+        </div>
+      </div>
+
+      <div class="soft-panel">
+        <div style="font-size:15px; font-weight:800; color:#2f2447; margin-bottom:10px;">
+          Próximos passos
+        </div>
+
+        <div class="small" style="font-size:14px; line-height:1.6; color:#374151;">
+          Seu pré-cadastro já foi recebido pela equipe do <strong>Isa Pet Hotel &amp; Creche</strong>.<br><br>
+          Agora iremos analisar as informações enviadas e, em seguida, realizar a hospedagem no sistema.<br><br>
+          Depois disso, o contrato digital será enviado para finalização.
+        </div>
+      </div>
+
+      <div class="card" style="background:#faf5ff; border-color:#e9d5ff;">
+        <div style="font-weight:800; color:#4f3b86; margin-bottom:6px;">
+          Importante
+        </div>
+        <div class="small" style="font-size:13px; line-height:1.55;">
+          Não é necessário preencher novamente este formulário.<br>
+          Caso precise corrigir alguma informação, entre em contato com a equipe.
+        </div>
+      </div>
+
+      <div class="actions" style="justify-content:center;">
+        <button type="button" class="btn-primary" id="btnVoltarInicio">Voltar ao início</button>
+      </div>
+    </div>
+
     <div class="top">
       <div class="brandBox">
         <img class="logo" src="logo-quadrado-NOVO-HOTEL.jpg" alt="Isa Pet" />
@@ -497,7 +538,8 @@
       <div class="pill">Pré-cadastro online</div>
     </div>
 
-    <div class="card">
+    <div id="formScreen">
+      <div class="card">
       <h2>Cadastro inicial do tutor e do pet</h2>
       <div class="small">
         Preencha as informações abaixo com atenção. Após o envio, nossa equipe irá revisar os dados antes da liberação no sistema.
@@ -623,8 +665,9 @@
       </div>
     </div>
 
-    <div class="foot">
-      Isa Pet Hotel & Creche
+      <div class="foot">
+        Isa Pet Hotel & Creche
+      </div>
     </div>
   </div>
 
@@ -644,6 +687,25 @@
 
     const petsContainer = document.getElementById("petsContainer");
     const statusBox = document.getElementById("statusBox");
+
+    const successScreen = document.getElementById("successScreen");
+    const formScreen = document.getElementById("formScreen");
+
+    function isSuccessMode(){
+      const url = new URL(window.location.href);
+      return url.searchParams.get("sucesso") === "1";
+    }
+
+    function showSuccessScreen(){
+      if (formScreen) formScreen.classList.add("hidden");
+      if (successScreen) successScreen.classList.remove("hidden");
+      window.scrollTo({ top: 0, behavior: "auto" });
+    }
+
+    function showFormScreen(){
+      if (formScreen) formScreen.classList.remove("hidden");
+      if (successScreen) successScreen.classList.add("hidden");
+    }
 
     function escHtml(str){
       return (str ?? "").toString()
@@ -1572,10 +1634,8 @@
           return;
         }
 
-        showStatus("Pré-cadastro enviado com sucesso. Nossa equipe irá revisar as informações antes da aprovação final.", true);
-        openModal("Pré-cadastro enviado", "Recebemos seus dados com sucesso.\n\nAgora nossa equipe irá revisar as informações antes da aprovação final no sistema.");
-
-        limparTudo();
+        window.location.href = "cadastro.html?sucesso=1";
+        return;
       }catch(e){
         showStatus("Erro de conexão ao enviar o pré-cadastro.", false);
       }finally{
@@ -1656,8 +1716,17 @@
       el.addEventListener("change", updateTutorSummary);
     });
 
-    addPetCard();
-	updateTutorSummary();
+    document.getElementById("btnVoltarInicio")?.addEventListener("click", () => {
+      window.location.href = "cadastro.html";
+    });
+
+    if (isSuccessMode()) {
+      showSuccessScreen();
+    } else {
+      showFormScreen();
+      addPetCard();
+      updateTutorSummary();
+    }
   </script>
 </body>
 </html>
