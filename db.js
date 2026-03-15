@@ -1,11 +1,11 @@
-// db.js — ONLINE (Supabase) compatível com o seu sistema atual
+// db.js v3.2 (patched)
 // Mantém a mesma API do seu DB antigo:
 // DB.init(), DB.list(), DB.get(), DB.add(), DB.put(), DB.delete(), DB.export(), DB.import()
 
 const SUPABASE_URL = "https://siksojcleumugquntrgc.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_6KMGqcdP2m5A8vx46Ew--g_GU8giA2V";
 
-const STORES = ["clientes","pets","hospedagens","creches","pagamentos","logs"];
+const STORES = ["clientes","pets","hospedagens","creches","pagamentos","logs","contratos"];
 
 let supa = null;
 
@@ -19,7 +19,7 @@ const tableShape = {}; // { clientes: {keys:Set, style:"camel"|"snake"|"unknown"
 
 // ====== PERFORMANCE: cache em memória (TTL) ======
 const __cache = {}; // ex: { clientes: { at: 123, rows: [...] } }
-const __CACHE_TTL_MS = 8000; // 8s (pode ajustar)
+const __CACHE_TTL_MS = 2000; // 2s (pode ajustar)
 function cacheGet(table){
   const c = __cache[table];
   if (!c) return null;
@@ -297,6 +297,20 @@ function toDb(table, rec){
   move("cuidadosFlag","cuidados_flag");
   move("cuidadosTexto","cuidados_texto");
 
+  move("vacinaViral","vacina_viral");
+  move("vacinaViralTipo","vacina_viral_tipo");
+  move("vacinaViralMes","vacina_viral_mes");
+  move("vacinaViralAno","vacina_viral_ano");
+
+  move("vacinaAntirrabica","vacina_antirrabica");
+  move("vacinaAntirrabicaMes","vacina_antirrabica_mes");
+  move("vacinaAntirrabicaAno","vacina_antirrabica_ano");
+
+  move("antipulga","antipulga");
+  move("antipulgaTipo","antipulga_tipo");
+  move("antipulgaMes","antipulga_mes");
+  move("antipulgaAno","antipulga_ano");
+
   // hospedagens
   move("tutorId","tutor_id");
   move("petIds","pet_ids");
@@ -346,6 +360,20 @@ function fromDb(table, row){
   move("alergias_texto","alergiasTexto");
   move("cuidados_flag","cuidadosFlag");
   move("cuidados_texto","cuidadosTexto");
+
+  move("vacina_viral","vacinaViral");
+  move("vacina_viral_tipo","vacinaViralTipo");
+  move("vacina_viral_mes","vacinaViralMes");
+  move("vacina_viral_ano","vacinaViralAno");
+
+  move("vacina_antirrabica","vacinaAntirrabica");
+  move("vacina_antirrabica_mes","vacinaAntirrabicaMes");
+  move("vacina_antirrabica_ano","vacinaAntirrabicaAno");
+
+  move("antipulga","antipulga");
+  move("antipulga_tipo","antipulgaTipo");
+  move("antipulga_mes","antipulgaMes");
+  move("antipulga_ano","antipulgaAno");
 
   move("pet_ids","petIds");
   move("data_entrada","dataEntrada");

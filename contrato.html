@@ -1,174 +1,845 @@
+<!-- contrato.html v3.10 (patched) -->
 <!doctype html>
 <html lang="pt-br">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Contrato - Isa Pet</title>
-  <style>
-    :root{
-      --bg:#0b0b0c;
-      --card:#141416;
-      --text:#f2f2f2;
-      --muted:#b9b9b9;
-      --line:#2a2a2f;
-      --ok:#2ecc71;
-      --warn:#f1c40f;
-      --err:#ff5c5c;
-    }
-    body{
-      margin:0;
-      font-family: Arial, Helvetica, sans-serif;
-      background:var(--bg);
-      color:var(--text);
-    }
-    .wrap{
-      max-width: 980px;
-      margin: 0 auto;
-      padding: 16px;
-    }
-    .top{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:12px;
-      margin-bottom: 12px;
-    }
-    .brand{
-      font-size: 18px;
-      font-weight: 700;
-      letter-spacing:.2px;
-    }
-    .pill{
-      border:1px solid var(--line);
-      color:var(--muted);
-      padding:6px 10px;
-      border-radius: 999px;
-      font-size: 12px;
-      white-space: nowrap;
-    }
-    .card{
-      background:var(--card);
-      border:1px solid var(--line);
-      border-radius: 16px;
-      padding: 14px;
-      margin-top: 10px;
-    }
-    .status{
-      color:var(--muted);
-      line-height:1.35;
-    }
-    .status strong{ color: var(--text); }
-    .status.ok{ color: #c9f7d9; }
-    .status.warn{ color: #fff1b8; }
-    .status.err{ color: #ffd0d0; }
+<style>
+  :root{
+    /* Tema igual ao sistema (index.html) */
+    --bg:#f4e9ff;
+    --panel:#ffffff;
+    --muted:#6b7280;
+    --text:#111827;
+    --line:#d4bbff;
 
-    pre{
-      margin:0;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      background: #0f0f12;
-      border:1px solid var(--line);
-      border-radius: 14px;
-      padding: 12px;
-      font-size: 14px;
-      line-height: 1.45;
-      color: var(--text);
+    --accent:#a855f7;
+    --accent-2:#c4b5fd;
+
+    --ok:#16a34a;
+    --warn:#eab308;
+    --err:#ef4444;
+
+    --radius:16px;
+  }
+
+  *{ box-sizing:border-box; }
+
+  body{
+    margin:0;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Helvetica, Arial;
+    background: var(--bg);
+    color: var(--text);
+  }
+
+  .wrap{
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 18px;
+  }
+
+  /* Topo (com logo) */
+  .top{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .brandBox{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    min-width: 220px;
+  }
+  .logo{
+    width:44px;
+    height:44px;
+    border-radius: 12px;
+    border:1px solid var(--line);
+    background:#fff;
+    object-fit: cover;
+  }
+  .brand{
+    display:flex;
+    flex-direction:column;
+    line-height:1.1;
+  }
+  .brand .t1{
+    font-size: 16px;
+    font-weight: 900;
+    letter-spacing:.2px;
+  }
+  .brand .t2{
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 700;
+  }
+
+  .pill{
+    border:1px solid var(--line);
+    color: #4b5563;
+    background:#f9f5ff;
+    padding:6px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .card{
+    background: var(--panel);
+    border:1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-top: 10px;
+    box-shadow: 0 8px 18px rgba(0,0,0,.06);
+  }
+  
+.hero-card{
+  background: linear-gradient(135deg, #ffffff 0%, #faf5ff 100%);
+  border:1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px;
+  margin-top: 12px;
+  margin-bottom: 4px;
+  box-shadow: 0 10px 22px rgba(0,0,0,.08);
+}
+
+  .hero-head{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:14px;
+    flex-wrap: wrap;
+  }
+
+  .hero-title{
+    margin:0;
+    font-size:22px;
+    line-height:1.1;
+    font-weight:900;
+    color:#4b1d95;
+  }
+
+  .hero-subtitle{
+    margin-top:6px;
+    font-size:13px;
+    color:var(--muted);
+    line-height:1.45;
+    max-width: 760px;
+  }
+
+  .hero-badges{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    margin-top:12px;
+  }
+
+  .badge-soft{
+    border:1px solid var(--line);
+    background:#ffffff;
+    color:#5b21b6;
+    padding:7px 10px;
+    border-radius:999px;
+    font-size:12px;
+    font-weight:800;
+    white-space:nowrap;
+  }
+
+  .section-head{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:12px;
+    flex-wrap:wrap;
+    margin-bottom:12px;
+  }
+
+  .section-title{
+    margin:0;
+    font-size:18px;
+    font-weight:900;
+    color:#111827;
+  }
+
+  .section-subtitle{
+    margin-top:4px;
+    font-size:13px;
+    color:var(--muted);
+    line-height:1.4;
+  }
+
+  .field-label{
+    display:block;
+    margin:0 0 6px 0;
+    font-size:12px;
+    font-weight:800;
+    color:#374151;
+  }
+
+  .info-note{
+    margin-top:12px;
+    padding:12px;
+    border:1px solid #ddd6fe;
+    border-radius:12px;
+    background:#faf5ff;
+    color:#4b5563;
+    font-size:13px;
+    line-height:1.45;
+  }
+
+  .status-card{
+    border-left:5px solid #c4b5fd;
+    background: linear-gradient(135deg, #ffffff 0%, #faf5ff 100%);
+  }
+
+  .status-card.ok{
+    border-left-color: var(--ok);
+    background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
+  }
+
+  .status-card.warn{
+    border-left-color: var(--warn);
+    background: linear-gradient(135deg, #ffffff 0%, #fffbeb 100%);
+  }
+
+  .status-card.err{
+    border-left-color: var(--err);
+    background: linear-gradient(135deg, #ffffff 0%, #fef2f2 100%);
+  }
+
+  .status-title{
+    margin:0 0 6px 0;
+    font-size:13px;
+    font-weight:900;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+    color:#6b7280;
+  }
+
+  .meta-box{
+    margin-top:10px;
+    padding:10px 12px;
+    border:1px solid var(--line);
+    border-radius:12px;
+    background:#fcfaff;
+  }
+  
+    .resume-card{
+    background: linear-gradient(135deg, #ffffff 0%, #fcfaff 100%);
+    border:1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-top: 10px;
+    box-shadow: 0 8px 18px rgba(0,0,0,.05);
+  }
+
+  .resume-head{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:12px;
+    flex-wrap:wrap;
+    margin-bottom:12px;
+  }
+
+  .resume-title{
+    margin:0;
+    font-size:18px;
+    font-weight:900;
+    color:#111827;
+  }
+
+  .resume-subtitle{
+    margin-top:4px;
+    font-size:13px;
+    color:var(--muted);
+    line-height:1.4;
+  }
+
+  .resume-grid{
+    display:grid;
+    grid-template-columns: repeat(4, minmax(0,1fr));
+    gap:10px;
+  }
+
+  .resume-item{
+    border:1px solid var(--line);
+    background:#ffffff;
+    border-radius:14px;
+    padding:12px;
+    min-height:84px;
+  }
+
+  .resume-label{
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    font-weight:900;
+    color:#6b7280;
+    margin-bottom:6px;
+  }
+
+  .resume-value{
+    font-size:15px;
+    line-height:1.35;
+    font-weight:800;
+    color:#111827;
+    word-break:break-word;
+  }
+
+  .resume-value.muted{
+    color:#6b7280;
+    font-weight:700;
+  }
+
+  .resume-value.ok{
+    color:#166534;
+  }
+
+  .resume-value.warn{
+    color:#92400e;
+  }
+
+  .resume-value.err{
+    color:#991b1b;
+  }
+
+  @media (max-width: 700px){
+    .wrap{
+      padding:14px;
     }
-    .row{
-      display:flex;
-      gap:10px;
-      flex-wrap: wrap;
+
+    .doc-title{
+      font-size:24px;
     }
-    .col{
-      flex: 1;
-      min-width: 220px;
+
+    .hero-title{
+      font-size:20px;
     }
-    input{
+	
+	    .resume-grid{
+      grid-template-columns: 1fr;
+    }
+
+    .actions-row button{
       width:100%;
-      box-sizing: border-box;
-      padding: 10px 12px;
-      border-radius: 12px;
-      border: 1px solid var(--line);
-      background: #0f0f12;
-      color: var(--text);
-      outline: none;
+      min-width:0;
+      flex:unset;
     }
-    input::placeholder{ color:#808089; }
-    label{
-      display:flex;
-      gap:10px;
-      align-items:flex-start;
-      margin: 10px 0 0;
-      color: var(--text);
+  }
+
+  .doc-head{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:16px;
+    padding:0 0 12px 0;
+    margin-bottom:12px;
+    border-bottom:1px solid var(--line);
+  }
+
+  .doc-head-left{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+  }
+
+  .doc-kicker{
+    font-size:12px;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    color:var(--muted);
+    font-weight:800;
+  }
+
+  .doc-title{
+    font-size:28px;
+    line-height:1;
+    font-weight:900;
+    color:#4b1d95;
+  }
+
+  .doc-head-right{
+    border:1px solid var(--line);
+    background:#faf5ff;
+    color:#5b21b6;
+    padding:8px 12px;
+    border-radius:999px;
+    font-size:12px;
+    font-weight:900;
+    white-space:nowrap;
+  }
+
+  .sign-box{
+    margin-top:14px;
+    padding:14px;
+    border:1px dashed #c4b5fd;
+    border-radius:14px;
+    background:#fcfaff;
+  }
+
+  .sign-label{
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    color:var(--muted);
+    font-weight:800;
+    margin-bottom:8px;
+  }
+
+  .sign-name{
+    font-size:30px;
+    line-height:1.1;
+    color:#3b0764;
+    font-weight:500;
+    font-family:"Brush Script MT","Segoe Script","Lucida Handwriting","Comic Sans MS",cursive;
+  }
+
+  .sign-doc{
+    margin-top:6px;
+    font-size:13px;
+    color:#4b5563;
+    font-weight:700;
+  }
+
+  .status{
+    color: #374151;
+    line-height:1.35;
+    font-weight: 600;
+  }
+  .status strong{ color: var(--text); font-weight: 900; }
+  .status.ok{ color: #166534; }
+  .status.warn{ color: #78350f; }
+  .status.err{ color: #7f1d1d; }
+
+  /* Texto do contrato (fica bem legível) */
+  .contract-text{
+    margin:0;
+    background:#ffffff;
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:12px;
+    font-size:14px;
+    line-height:1.35;
+    color:var(--text);
+    font-family: Arial, Helvetica, sans-serif;
+    word-break:break-word;
+    overflow-wrap:anywhere;
+  }
+
+  .contract-text b,
+  .contract-text strong{
+    font-weight:700;
+  }
+
+  .contract-text br{
+    line-height:1.35;
+  }
+
+  .small{
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 8px;
+    line-height: 1.35;
+  }
+
+  .row{
+    display:flex;
+    gap:10px;
+    flex-wrap: wrap;
+  }
+  .col{
+    flex: 1;
+    min-width: 220px;
+  }
+
+  input{
+    width:100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: #ffffff;
+    color: var(--text);
+    outline: none;
+  }
+  input:focus{
+    border-color: var(--accent);
+    background:#faf5ff;
+  }
+  input::placeholder{ color:#9ca3af; }
+
+  label{
+    display:flex;
+    gap:10px;
+    align-items:flex-start;
+    margin: 10px 0 0;
+    color: var(--text);
+  }
+  label input[type="checkbox"]{
+    width:18px;
+    height:18px;
+    margin-top:2px;
+    accent-color: var(--accent);
+  }
+
+  .divider{
+    height:1px;
+    background: var(--line);
+    margin: 12px 0;
+  }
+  .center{ text-align:center; }
+
+  /* Botões no estilo do sistema */
+  button{
+    padding: 11px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--accent);
+    cursor: pointer;
+    font-weight: 900;
+    background: var(--accent);
+    color: #ffffff;
+    width: 100%;
+  }
+  button:hover{ filter: brightness(1.02); }
+  button:disabled{
+    opacity:.6;
+    cursor:not-allowed;
+    filter: none;
+  }
+
+  .actions-row{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-top:12px;
+  }
+
+  .actions-row button{
+    width:auto;
+    min-width:180px;
+    flex:1;
+  }
+
+  @media print{
+    @page{
+      size: A4;
+      margin: 12mm;
     }
-    label input[type="checkbox"]{
-      width:18px;
-      height:18px;
-      margin-top:2px;
-      accent-color: #6ee7b7;
+
+    #statusBox,
+    #cardAceite,
+    #resumeCard,
+    .actions-row,
+    .foot{
+      display:none !important;
     }
-    button{
-      padding: 11px 14px;
-      border-radius: 12px;
-      border: 0;
-      cursor: pointer;
-      font-weight: 700;
-      background: #6ee7b7;
-      color: #0b0b0c;
-      width: 100%;
+
+    .top{
+      display:flex !important;
+      align-items:center !important;
+      justify-content:space-between !important;
+      gap:12px !important;
+      margin:0 0 10px 0 !important;
+      padding:0 0 10px 0 !important;
+      border-bottom:1px solid #d1d5db !important;
     }
-    button:disabled{
-      opacity:.5;
-      cursor:not-allowed;
+
+    .brandBox{
+      display:flex !important;
+      align-items:center !important;
+      gap:10px !important;
     }
-    .small{
-      font-size: 12px;
-      color: var(--muted);
-      margin-top: 8px;
-      line-height: 1.35;
+
+    .logo{
+      display:block !important;
+      width:42px !important;
+      height:42px !important;
+      border-radius:10px !important;
+      border:1px solid #d1d5db !important;
+      object-fit:cover !important;
+      background:#fff !important;
     }
-    .divider{
-      height:1px;
-      background: var(--line);
-      margin: 12px 0;
+
+    .brand .t1{
+      font-size:15px !important;
+      font-weight:900 !important;
+      color:#111827 !important;
     }
-    .center{
-      text-align:center;
+
+    .brand .t2{
+      font-size:11px !important;
+      color:#6b7280 !important;
+      font-weight:700 !important;
     }
-  </style>
+
+    .pill{
+      border:1px solid #d1d5db !important;
+      background:#fff !important;
+      color:#111827 !important;
+      padding:6px 10px !important;
+      border-radius:999px !important;
+      font-size:11px !important;
+      font-weight:900 !important;
+      white-space:nowrap !important;
+    }
+
+    html, body{
+      background:#ffffff !important;
+      color:#000000 !important;
+      margin:0 !important;
+      padding:0 !important;
+    }
+
+    .wrap{
+      max-width:100% !important;
+      width:100% !important;
+      padding:0 !important;
+      margin:0 !important;
+    }
+
+    .card{
+      box-shadow:none !important;
+      border:1px solid #d1d5db !important;
+      margin:0 !important;
+      padding:10px !important;
+      border-radius:0 !important;
+      background:#ffffff !important;
+    }
+	
+	    .doc-head{
+      display:flex !important;
+      align-items:flex-start !important;
+      justify-content:space-between !important;
+      gap:12px !important;
+      margin:0 0 10px 0 !important;
+      padding:0 0 10px 0 !important;
+      border-bottom:1px solid #d1d5db !important;
+    }
+
+    .doc-kicker{
+      font-size:10px !important;
+      color:#6b7280 !important;
+      font-weight:800 !important;
+      text-transform:uppercase !important;
+      letter-spacing:.08em !important;
+    }
+
+    .doc-title{
+      font-size:24px !important;
+      color:#111827 !important;
+      font-weight:900 !important;
+    }
+
+    .doc-head-right{
+      border:1px solid #d1d5db !important;
+      background:#fff !important;
+      color:#111827 !important;
+      padding:6px 10px !important;
+      border-radius:999px !important;
+      font-size:11px !important;
+      font-weight:900 !important;
+    }
+
+    .sign-box{
+      margin-top:12px !important;
+      padding:12px !important;
+      border:1px dashed #9ca3af !important;
+      border-radius:10px !important;
+      background:#fff !important;
+      break-inside:avoid !important;
+      page-break-inside:avoid !important;
+    }
+
+    .sign-label{
+      font-size:10px !important;
+      color:#6b7280 !important;
+      text-transform:uppercase !important;
+      letter-spacing:.08em !important;
+      font-weight:800 !important;
+      margin-bottom:6px !important;
+    }
+
+    .sign-name{
+      font-size:26px !important;
+      color:#111827 !important;
+      font-weight:500 !important;
+      font-family:"Brush Script MT","Segoe Script","Lucida Handwriting","Comic Sans MS",cursive !important;
+    }
+
+    .sign-doc{
+      margin-top:4px !important;
+      font-size:11px !important;
+      color:#374151 !important;
+      font-weight:700 !important;
+    }
+
+    #texto{
+      border:none !important;
+      padding:0 !important;
+      margin:0 !important;
+      line-height:1.25 !important;
+      font-size:12.5px !important;
+      color:#000 !important;
+      font-family: Arial, Helvetica, sans-serif !important;
+      word-break:break-word !important;
+      overflow-wrap:anywhere !important;
+      background:#fff !important;
+    }
+
+    #texto b,
+    #texto strong{
+      font-weight:700 !important;
+    }
+
+    #texto br{
+      line-height:1.25 !important;
+    }
+
+    #meta{
+      margin-top:8px !important;
+      color:#374151 !important;
+      font-size:11px !important;
+      line-height:1.2 !important;
+    }
+  }
+
+  /* Rodapé discreto */
+  .foot{
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 12px;
+    text-align:center;
+  }
+</style>
 </head>
 
 <body>
   <div class="wrap">
 
-    <div class="top">
-      <div class="brand">Isa Pet Hotel & Creche</div>
-      <div class="pill" id="pill">Contrato</div>
+<div class="top">
+  <div class="brandBox">
+    <img class="logo" src="logo-quadrado-NOVO-HOTEL.jpg" alt="Isa Pet" />
+    <div class="brand">
+      <div class="t1">Isa Pet</div>
+      <div class="t2">Hotel & Creche</div>
+    </div>
+  </div>
+
+  <div class="pill" id="pill">Contrato</div>
+</div>
+
+<div class="hero-card" id="heroCard">
+  <div class="hero-head">
+    <div>
+      <h1 class="hero-title">Contrato digital de prestação de serviços</h1>
+      <div class="hero-subtitle">
+        Este documento apresenta as regras, condições e responsabilidades do serviço contratado no Isa Pet Hotel & Creche.
+        Leia com atenção antes de confirmar o aceite digital.
+      </div>
+    </div>
+  </div>
+
+  <div class="hero-badges">
+    <div class="badge-soft">Documento online</div>
+    <div class="badge-soft">Validação por nome e CPF</div>
+    <div class="badge-soft">Aceite registrado com data e hora</div>
+  </div>
+</div>
+
+<div class="resume-card" id="resumeCard" style="display:none">
+  <div class="resume-head">
+    <div>
+      <h2 class="resume-title">Resumo do contrato</h2>
+      <div class="resume-subtitle">
+        Confira abaixo as informações principais deste documento antes de prosseguir com a leitura e o aceite digital.
+      </div>
+    </div>
+  </div>
+
+  <div class="resume-grid">
+    <div class="resume-item">
+      <div class="resume-label">Tutor responsável</div>
+      <div class="resume-value" id="resumeTutor">—</div>
     </div>
 
-    <div class="card">
-      <div id="status" class="status">Carregando contrato…</div>
+    <div class="resume-item">
+      <div class="resume-label">CPF do tutor</div>
+      <div class="resume-value" id="resumeCpf">—</div>
     </div>
 
-    <div class="card" id="cardContrato" style="display:none">
-      <pre id="texto"></pre>
-      <div class="small" id="meta"></div>
+    <div class="resume-item">
+      <div class="resume-label">Tipo do contrato</div>
+      <div class="resume-value" id="resumeKind">—</div>
+    </div>
+
+    <div class="resume-item">
+      <div class="resume-label">Situação</div>
+      <div class="resume-value muted" id="resumeStatus">—</div>
+    </div>
+  </div>
+</div>
+	
+	<div class="card" id="cardContrato" style="display:none">
+      <div class="doc-head">
+        <div class="doc-head-left">
+          <div class="doc-kicker">Contrato de prestação de serviços</div>
+          <div class="doc-title" id="docTitle">Hospedagem</div>
+        </div>
+        <div class="doc-head-right" id="docStatusBadge">Documento digital</div>
+      </div>
+
+      <div id="texto" class="contract-text"></div>
+
+      <div class="meta-box">
+        <div class="small" id="meta"></div>
+      </div>
+
+      <div id="signBox" class="sign-box" style="display:none">
+        <div class="sign-label">Aceite digital do tutor</div>
+        <div class="sign-name" id="signName">—</div>
+        <div class="sign-doc" id="signDoc">CPF: —</div>
+      </div>
+
+<div class="actions-row" id="printActions" style="display:none">
+  <button type="button" id="btnPrint">Imprimir contrato</button>
+</div>
     </div>
 
     <div class="card" id="cardAceite" style="display:none">
+      <div class="section-head">
+        <div>
+          <h3 class="section-title">Confirmação de aceite</h3>
+          <div class="section-subtitle">
+            Para concluir a assinatura digital, informe exatamente o nome completo e o CPF do tutor responsável.
+          </div>
+        </div>
+      </div>
+
       <div class="row">
         <div class="col">
-          <input id="nome" placeholder="Seu nome (opcional)" />
+          <div class="field-label">Nome completo do tutor</div>
+          <input id="nome" placeholder="Digite o nome completo" />
         </div>
         <div class="col">
-          <input id="doc" placeholder="CPF (opcional)" />
+          <div class="field-label">CPF do tutor</div>
+          <input id="doc" placeholder="000.000.000-00" />
         </div>
+      </div>
+
+      <div class="info-note">
+        O sistema valida automaticamente os dados informados com o contrato carregado nesta página antes de registrar o aceite.
       </div>
 
       <label>
         <input id="chk" type="checkbox" />
         <div>
-          <div><strong>Li e concordo</strong> com o contrato acima.</div>
+          <div><strong>Declaro que li,</strong> compreendi e estou de acordo com as condições deste contrato, bem como com as regras internas do <strong>Isa Pet Hotel & Creche</strong> para hospedagem de animais.</div>
           <div class="small">Ao confirmar, o aceite será registrado com data e hora.</div>
         </div>
       </label>
@@ -179,6 +850,14 @@
       <div class="small center" id="hint"></div>
     </div>
 
+    <div class="card status-card" id="statusCard">
+      <div class="status-title">Status do documento</div>
+      <div id="status" class="status">Carregando contrato…</div>
+    </div>
+
+<div class="foot">
+  Este contrato é validado digitalmente pelo Isa Pet Hotel & Creche.
+</div>
   </div>
 
   <script>
@@ -192,8 +871,14 @@
 
     function setStatus(msg, type){
       const el = document.getElementById("status");
+      const card = document.getElementById("statusCard");
+
       el.className = "status" + (type ? " " + type : "");
       el.innerHTML = msg;
+
+      if (card) {
+        card.className = "card status-card" + (type ? " " + type : "");
+      }
     }
 
     function kindLabel(kind, text){
@@ -208,6 +893,50 @@
       if(t.includes("hosped")) return "HOSPEDAGEM";
       return "CONTRATO";
     }
+
+function extractContractNoFromText(text){
+  const t = (text || '');
+
+  // tenta vários padrões comuns
+  // ex: "Hospedagem ID: 123", "ID da Hospedagem: 123", "Hospedagem #123", "N° Contrato: 123"
+  const patterns = [
+    /ID\s+da\s+Hospedagem\s*[:#]?\s*(\d+)/i,
+    /Hospedagem\s*ID\s*[:#]?\s*(\d+)/i,
+    /Hospedagem\s*[#№Nºno]*\s*[:#]?\s*(\d+)/i,
+    /N[ºo°]\s*Contrato\s*[:#]?\s*(\d+)/i,
+    /Contrato\s*[#№Nºno]*\s*[:#]?\s*(\d+)/i,
+  ];
+
+  for (const re of patterns){
+    const m = t.match(re);
+    if (m && m[1]) return m[1];
+  }
+  return null;
+}
+
+function isoToBRDate(iso){
+  // iso: "YYYY-MM-DD"
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return iso;
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+function normalizeContractText(text, contractNo){
+  let out = String(text || '');
+
+  // 1) datas ISO (YYYY-MM-DD) -> BR (dd/mm/aaaa)
+  // evita trocar coisas que não sejam data
+  out = out.replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g, (_, Y, M, D) => `${D}/${M}/${Y}`);
+
+  // 2) troca "Versão: v2026-03-04" / "Versão: 2026-03-04" por "N° Contrato: X"
+  // (só se tivermos contractNo)
+  if (contractNo) {
+    out = out.replace(/Vers[aã]o\s*:\s*v?\d{4}-\d{2}-\d{2}/gi, `N° Contrato: ${contractNo}`);
+    out = out.replace(/Vers[aã]o\s*:\s*v?\d{2}\/\d{2}\/\d{4}/gi, `N° Contrato: ${contractNo}`);
+  }
+
+  return out;
+}
 
     async function load(){
       const token = qs("t");
@@ -225,34 +954,170 @@
         return;
       }
 
-      // 2) Preenche tela
-      const label = kindLabel(data.kind, data.contract_text);
-      document.getElementById("pill").textContent = label;
+const label = kindLabel(data.kind, data.contract_text);
+document.getElementById("pill").textContent = label;
+document.getElementById("docTitle").textContent =
+  label.charAt(0) + label.slice(1).toLowerCase();
 
-      document.getElementById("cardContrato").style.display = "block";
-      document.getElementById("texto").textContent = data.contract_text || "";
+document.getElementById("cardContrato").style.display = "block";
 
-      const expStr = data.expires_at ? new Date(data.expires_at).toLocaleString() : "";
-      const meta = [];
-      if(data.contract_version) meta.push("Versão: " + data.contract_version);
-      if(data.contract_hash) meta.push("Hash: " + data.contract_hash.slice(0, 12) + "…");
-      if(expStr) meta.push("Expira em: " + expStr);
-      document.getElementById("meta").textContent = meta.join(" | ");
+if (document.getElementById("resumeCard")) {
+  document.getElementById("resumeCard").style.display = "block";
+}
 
+/* =========================================================
+   IMPORTANTÍSSIMO:
+   declara contractNo ANTES de usar em qualquer lugar
+   ========================================================= */
+let contractNo =
+  (data.ref_id ?? data.refId ?? data.refID ?? data.reference_id ?? data.referenceId ?? null);
+
+// fallback: tenta extrair do próprio texto do contrato, se o backend não mandar refId
+if (!contractNo && data.contract_text) {
+  contractNo = extractContractNoFromText(data.contract_text);
+}
+
+// Texto do contrato (com normalização: datas BR + troca "Versão" por "N° Contrato")
+let contractText = data.contract_text || "";
+contractText = normalizeContractText(contractText, contractNo);
+document.getElementById("texto").innerHTML = contractText;
+
+// ===== meta (topinho) =====
+const expStr = data.expires_at
+  ? new Date(data.expires_at).toLocaleString('pt-BR')
+  : "";
+
+const accStr = data.accepted_at
+  ? new Date(data.accepted_at).toLocaleString('pt-BR')
+  : "";
+
+const acceptedNameRaw = data.accepted_name || "";
+const acceptedDocRaw = data.accepted_doc || "";
+
+const tutorData = extractTutorDataFromContractText(
+  document.getElementById("texto").innerText ||
+  document.getElementById("texto").textContent ||
+  ""
+);
+
+const resumeCard = document.getElementById("resumeCard");
+const resumeTutor = document.getElementById("resumeTutor");
+const resumeCpf = document.getElementById("resumeCpf");
+const resumeKind = document.getElementById("resumeKind");
+const resumeStatus = document.getElementById("resumeStatus");
+
+if (resumeTutor) {
+  resumeTutor.textContent = tutorData.nome || "Não identificado";
+}
+
+if (resumeCpf) {
+  resumeCpf.textContent = formatCPF(tutorData.cpf) || "Não identificado";
+}
+
+if (resumeKind) {
+  resumeKind.textContent = label.charAt(0) + label.slice(1).toLowerCase();
+}
+
+if (resumeStatus) {
+  resumeStatus.className = "resume-value muted";
+}
+
+const acceptedName =
+  acceptedNameRaw ||
+  tutorData.nome ||
+  "";
+
+const acceptedDoc =
+  formatCPF(acceptedDocRaw) ||
+  formatCPF(tutorData.cpf) ||
+  "";
+
+const meta = [];
+
+if (contractNo) {
+  meta.push("N° Contrato: " + contractNo);
+} else if (data.contract_version) {
+  meta.push("Contrato: " + data.contract_version);
+}
+
+// se já aceitou, mostra ACEITO EM e não mostra mais expiração
+if (data.status === "aceito") {
+  if (accStr) meta.push("Aceito em: " + accStr);
+} else {
+  if (expStr) meta.push("Expira em: " + expStr);
+}
+
+document.getElementById("meta").textContent = meta.join(" | ");
+
+const signBox = document.getElementById("signBox");
+const signName = document.getElementById("signName");
+const signDoc = document.getElementById("signDoc");
+const docStatusBadge = document.getElementById("docStatusBadge");
+
+const printActions = document.getElementById("printActions");
+
+if (data.status === "aceito") {
+  if (docStatusBadge) docStatusBadge.textContent = "Aceito digitalmente";
+  if (printActions) printActions.style.display = "flex";
+  if (signBox && signName && signDoc) {
+    signName.textContent = acceptedName || "Tutor responsável";
+    signDoc.textContent = acceptedDoc ? ("CPF: " + acceptedDoc) : "CPF não informado";
+    signBox.style.display = "block";
+  }
+  if (resumeStatus) {
+    resumeStatus.textContent = "Aceito digitalmente";
+    resumeStatus.className = "resume-value ok";
+  }
+} else if (data.status === "expirado") {
+  if (docStatusBadge) docStatusBadge.textContent = "Link expirado";
+  if (printActions) printActions.style.display = "none";
+  if (resumeStatus) {
+    resumeStatus.textContent = "Link expirado";
+    resumeStatus.className = "resume-value warn";
+  }
+} else {
+  if (docStatusBadge) docStatusBadge.textContent = "Aguardando aceite";
+  if (printActions) printActions.style.display = "none";
+  if (resumeStatus) {
+    resumeStatus.textContent = "Aguardando aceite";
+    resumeStatus.className = "resume-value muted";
+  }
+}
+
+// botão imprimir
+const btnPrint = document.getElementById("btnPrint");
+if (btnPrint){
+  btnPrint.onclick = () => window.print();
+}
+	  
       // 3) Estados
       if(data.status === "expirado"){
         setStatus("<strong>Este link expirou.</strong> Solicite um novo link ao Isa Pet.", "warn");
         return;
       }
       if(data.status === "aceito"){
-        const acc = data.accepted_at ? new Date(data.accepted_at).toLocaleString() : "";
+        const acc = data.accepted_at ? new Date(data.accepted_at).toLocaleString('pt-BR') : "";
         setStatus("<strong>Contrato já aceito.</strong>" + (acc ? (" Aceito em: " + acc) : ""), "ok");
+
+        const autoPrint = qs("print");
+        if (autoPrint === "1") {
+          setTimeout(() => window.print(), 350);
+        }
+
         return;
       }
 
       // pendente
-      setStatus("Confira o contrato acima e confirme o aceite abaixo.", "");
+      setStatus("Confira o contrato abaixo e confirme o aceite abaixo.", "");
       document.getElementById("cardAceite").style.display = "block";
+
+// máscara CPF (opcional)
+const docEl = document.getElementById("doc");
+if (docEl){
+  docEl.addEventListener("input", () => {
+    docEl.value = formatCPF(docEl.value);
+  });
+}
 
       const chk = document.getElementById("chk");
       const btn = document.getElementById("btn");
@@ -274,6 +1139,67 @@
         const name = document.getElementById("nome").value.trim();
         const doc  = document.getElementById("doc").value.trim();
 
+const textoContratoLido =
+  document.getElementById("texto").innerText ||
+  document.getElementById("texto").textContent ||
+  "";
+
+const tutorData = extractTutorDataFromContractText(textoContratoLido);
+const cpfDigitado = onlyDigits(doc);
+const cpfTutor = onlyDigits(tutorData.cpf);
+const nomeDigitadoNorm = normalizeName(name);
+const nomeTutorNorm = normalizeName(tutorData.nome);
+
+
+        if (!name) {
+          setStatus("Informe o nome completo do tutor.", "err");
+          btn.textContent = "Confirmar aceite";
+          refreshBtn();
+          return;
+        }
+
+        if (!doc) {
+          setStatus("Informe o CPF do tutor.", "err");
+          btn.textContent = "Confirmar aceite";
+          refreshBtn();
+          return;
+        }
+
+        if (!isValidCPF(cpfDigitado)) {
+          setStatus("CPF inválido. Verifique e tente novamente.", "err");
+          btn.textContent = "Confirmar aceite";
+          refreshBtn();
+          return;
+        }
+
+        if (!cpfTutor) {
+          setStatus("Não foi possível validar o CPF do tutor neste contrato.", "err");
+          btn.textContent = "Confirmar aceite";
+          refreshBtn();
+          return;
+        }
+
+        if (cpfDigitado !== cpfTutor) {
+          setStatus("O CPF informado não corresponde ao CPF do tutor deste contrato.", "err");
+          btn.textContent = "Confirmar aceite";
+          refreshBtn();
+          return;
+        }
+
+        if (!nomeTutorNorm) {
+          setStatus("Não foi possível validar o nome do tutor neste contrato.", "err");
+          btn.textContent = "Confirmar aceite";
+          refreshBtn();
+          return;
+        }
+
+        if (nomeDigitadoNorm !== nomeTutorNorm) {
+          setStatus("O nome informado não corresponde ao nome do tutor deste contrato.", "err");
+          btn.textContent = "Confirmar aceite";
+          refreshBtn();
+          return;
+        }
+
         const r2 = await fetch(FN_BASE + "/contract-accept", {
           method:"POST",
           headers:{ "Content-Type":"application/json" },
@@ -289,10 +1215,132 @@
           return;
         }
 
-        setStatus("<strong>Aceite registrado com sucesso.</strong> Obrigado!", "ok");
-        document.getElementById("cardAceite").style.display = "none";
+setStatus("<strong>Aceite registrado com sucesso.</strong> Atualizando contrato…", "ok");
+document.getElementById("cardAceite").style.display = "none";
+
+setTimeout(() => {
+  const url = new URL(window.location.href);
+  window.location.replace(url.toString());
+}, 700);
       };
     }
+
+function formatCPF(value){
+  let v = (value || '').replace(/\D/g, '');
+  v = v.slice(0, 11);
+  if (v.length <= 3) return v;
+  if (v.length <= 6) return v.replace(/^(\d{3})(\d+)/, '$1.$2');
+  if (v.length <= 9) return v.replace(/^(\d{3})(\d{3})(\d+)/, '$1.$2.$3');
+  return v.replace(/^(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4');
+}
+
+function onlyDigits(v){
+  return String(v || '').replace(/\D/g, '');
+}
+
+function normalizeName(v){
+  return String(v || '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
+function isValidCPF(cpf){
+  cpf = onlyDigits(cpf);
+
+  if (!cpf || cpf.length !== 11) return false;
+  if (/^(\d)\1{10}$/.test(cpf)) return false;
+
+  let soma = 0;
+  let resto;
+
+  for (let i = 1; i <= 9; i++) {
+    soma += parseInt(cpf.substring(i - 1, i), 10) * (11 - i);
+  }
+  resto = (soma * 10) % 11;
+  if (resto === 10 || resto === 11) resto = 0;
+  if (resto !== parseInt(cpf.substring(9, 10), 10)) return false;
+
+  soma = 0;
+  for (let i = 1; i <= 10; i++) {
+    soma += parseInt(cpf.substring(i - 1, i), 10) * (12 - i);
+  }
+  resto = (soma * 10) % 11;
+  if (resto === 10 || resto === 11) resto = 0;
+  if (resto !== parseInt(cpf.substring(10, 11), 10)) return false;
+
+  return true;
+}
+
+function extractTutorDataFromContractText(text){
+  const raw = String(text || '');
+
+  const clean = raw
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\r/g, '')
+    .replace(/\u00A0/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n+/g, '\n')
+    .trim();
+
+  let nome = '';
+  let cpf = '';
+
+  // 1) FORMATO REAL DO SEU CONTRATO:
+  // "Eu, Rafael Antunes Evangelista, CPF 340.546.788-82, residente em ..."
+  const fraseTutor = clean.match(/Eu,\s*(.+?),\s*CPF\s*([\d.\-]+),/i);
+  if (fraseTutor) {
+    nome = (fraseTutor[1] || '').trim();
+    cpf = onlyDigits(fraseTutor[2] || '');
+  }
+
+  // 2) fallback para formatos alternativos, se um dia mudar o texto
+  if (!cpf) {
+    const cpfPatterns = [
+      /cpf\s+do\s+tutor\s*:\s*([\d.\-]+)/i,
+      /cpf\/mf\s+do\s+tutor\s*:\s*([\d.\-]+)/i,
+      /cpf\/mf\s*:\s*([\d.\-]+)/i,
+      /\bcpf\s*:\s*([\d.\-]+)/i,
+      /\bcpf\s+([\d.\-]+)/i
+    ];
+
+    for (const re of cpfPatterns) {
+      const m = clean.match(re);
+      if (m && m[1]) {
+        cpf = onlyDigits(m[1]);
+        break;
+      }
+    }
+  }
+
+  if (!nome) {
+    const nomePatterns = [
+      /nome\s+do\s+tutor\s*:\s*([^\n|]+)/i,
+      /tutor\(a\)\s*:\s*([^\n|]+)/i,
+      /\btutor\s*:\s*([^\n|]+)/i,
+      /respons[aá]vel\s*:\s*([^\n|]+)/i
+    ];
+
+    for (const re of nomePatterns) {
+      const m = clean.match(re);
+      if (m && m[1]) {
+        nome = m[1].trim();
+        break;
+      }
+    }
+  }
+
+  return {
+    nome: nome || '',
+    cpf: cpf || ''
+  };
+}
 
     load();
   </script>

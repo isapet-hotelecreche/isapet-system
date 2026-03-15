@@ -1,10 +1,11 @@
-// ui.js v3
+// ui.js v3.1
 const Tabs = [
   { id:'checkin', label:'Check-in/Out' },
   { id:'clientes', label:'Tutor' },
   { id:'pets', label:'Pets' },
   { id:'hosp', label:'Hospedagem / Hotel' },
   { id:'creche', label:'Creche' },
+  { id:'precadastros', label:'Pré-cadastros' },
   { id:'pagamentos', label:'Pagamentos' },
   { id:'logs', label:'Logs' },
   { id:'backup', label:'Importar/Exportar' },
@@ -30,6 +31,7 @@ async function renderView(id='checkin'){
   if (id==='pets') return renderPets();
   if (id==='hosp') return renderHosp();
   if (id==='creche') return renderCreche();
+  if (id==='precadastros') return renderPreCadastros();
   if (id==='pagamentos') return renderPagamentos();
   if (id==='logs') return renderLogs();
   if (id==='backup') return renderBackup();

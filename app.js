@@ -1,4 +1,4 @@
-// app.js v3 (patched)
+// app.js v10.22 (patched)
 document.addEventListener('DOMContentLoaded', async () => {
   // Loading (tela inicial)
   const loadingEl = document.getElementById('app_loading');
@@ -22,6 +22,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     toast('Falha ao iniciar (login/banco). Veja o console.', false);
   }
 });
+
+// ================================
+// HELPERS DO CONTRATO (GLOBAL)
+// (tem que ficar FORA de qualquer função)
+// ================================
+function __isAcceptedContract(c){
+  const vAceito = c?.aceito;
+  const aceitoBool =
+    vAceito === true || vAceito === 1 || vAceito === '1' ||
+    (typeof vAceito === 'string' && vAceito.toLowerCase() === 'true');
+
+  const aceitoEm =
+    c?.aceito_em || c?.aceitoEm || c?.accepted_at || c?.acceptedAt || null;
+
+  return !!(aceitoBool || aceitoEm);
+}
+
+function __getExpiresAt(c){
+  return c?.expiresAt || c?.expires_at || c?.expiraEm || c?.expira_em || c?.expira_em;
+}
 
 // ================================
 // EDGE FUNCTIONS - Contratos
@@ -94,18 +114,116 @@ async function callEdgeFn(name, payload){
 
 async function gerarLinkContrato(kind, refId){
   const out = await callEdgeFn("contract-create", { kind, refId });
+  
+  // ✅ abre a telinha profissional do sistema
+  await showContractLink(kind, refId, {
+    forceUrl: out.url,
+    forceExpiresAt: out.expiresAt || null,
+    justCreated: true
+  });
+}
 
-  // Mostra o link em texto (uiConfirm não aceita HTML)
+function __contractRefId(c){
+  // ref_id é o nome real no Postgres
+  return (c?.ref_id ?? c?.refId ?? c?.refID ?? null);
+}
+
+function __contractExpiresAt(c){
+  // usa o helper global (mais “à prova de variações”)
+  return __getExpiresAt(c) || null;
+}
+
+function __contractIsAccepted(c){
+  // usa o helper global (mais “à prova de variações”)
+  return __isAcceptedContract(c);
+}
+
+function __contractBuildUrlFromToken(token){
+  const base = `${location.origin}${location.pathname.replace(/\/[^\/]*$/, '/')}`;
+  return `${base}contrato.html?t=${encodeURIComponent(token)}`;
+}
+
+// Busca contrato existente (mais recente) ou cria um novo
+async function getOrCreateContractLink(kind, refId){
+  const now = Date.now();
+
+  // 1) tenta achar um contrato válido no banco
+  let contratos = [];
+  try { contratos = await DB.list('contratos'); } catch(e) { contratos = []; }
+
+  const matches = (contratos || []).filter(c => {
+    const ref = __contractRefId(c);
+    return String(c.kind) === String(kind) && Number(ref) === Number(refId);
+  });
+
+  // mais novo primeiro
+  matches.sort((a,b)=> Number(b.id||0) - Number(a.id||0));
+  const best = matches[0];
+
+  if (best && best.token){
+    const exp = __contractExpiresAt(best);
+    const expMs = exp ? new Date(exp).getTime() : 0;
+    const expired = expMs ? (now > expMs) : false;
+
+    if (!expired){
+      return {
+        url: __contractBuildUrlFromToken(best.token),
+        expiresAt: exp || null,
+        accepted: __contractIsAccepted(best),
+      };
+    }
+  }
+
+  // 2) se não achou ou expirou, cria novo via edge function
+  const out = await callEdgeFn("contract-create", { kind, refId });
+  return {
+    url: out.url,
+    expiresAt: out.expiresAt || null,
+    accepted: false
+  };
+}
+
+// Abre a telinha do sistema com o link (e copia/abre)
+async function showContractLink(kind, refId, opts = {}){
+  const {
+    forceUrl = null,
+    forceExpiresAt = null,
+    justCreated = false,
+  } = opts;
+
+  const out = forceUrl
+    ? { url: forceUrl, expiresAt: forceExpiresAt, accepted: false }
+    : await getOrCreateContractLink(kind, refId);
+
+  const title = justCreated ? 'Contrato gerado ✅' : 'Contrato';
+
+  // Se a telinha existir, usa ela
+  if (typeof uiContractLinkModal === 'function'){
+    await uiContractLinkModal({
+      title,
+      url: out.url,
+      expiresAt: out.expiresAt,
+      accepted: out.accepted
+    });
+    return;
+  }
+
+  // fallback: uiConfirm (texto puro)
+  const expTxt = out.expiresAt ? new Date(out.expiresAt).toLocaleString() : '(sem data)';
   const msg =
-`Link do contrato (expira em 7 dias):
-
+`Link do contrato:
 ${out.url}
 
-Expira em: ${new Date(out.expiresAt).toLocaleString()}
+Expira em: ${expTxt}
 
 Deseja copiar o link agora?`;
 
-  const ok = await uiConfirm(msg, "Contrato gerado ✅", { okText: "Copiar link", cancelText: "Fechar" });
+  let ok = false;
+  if (typeof uiConfirm === "function") {
+    ok = await uiConfirm(msg, title, { okText: "Copiar link", cancelText: "Fechar" });
+  } else {
+    ok = window.confirm(msg + "\n\nClique em OK para copiar o link.");
+  }
 
   if (ok) {
     try { await navigator.clipboard.writeText(out.url); } catch(e) {}
@@ -113,6 +231,332 @@ Deseja copiar o link agora?`;
   }
 }
 
+// ================================
+// MODAL DO CONTRATO (GLOBAL)
+// (precisa ficar FORA de qualquer função)
+// ================================
+function uiEscapeHtml(str){
+  return (str ?? '').toString()
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;')
+    .replaceAll("'","&#039;");
+}
+
+function uiModalTextToHtml(text){
+  return uiEscapeHtml(text || '').replace(/\n/g, '<br>');
+}
+
+function uiConfirm(message, title='Confirmação', opts = {}){
+  const {
+    okText = 'OK',
+    cancelText = 'Cancelar'
+  } = opts || {};
+
+  return new Promise((resolve) => {
+    const old = document.getElementById('ui_confirm_overlay');
+    if (old) old.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'ui_confirm_overlay';
+    overlay.style.cssText = `
+      position:fixed;
+      inset:0;
+      z-index:999999;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:16px;
+      background:rgba(0,0,0,.45);
+    `;
+
+    const box = document.createElement('div');
+    box.style.cssText = `
+      width:min(560px, 100%);
+      background:var(--bg);
+      color:var(--text);
+      border:1px solid #d4bbff;
+      border-radius:16px;
+      box-shadow:0 18px 40px rgba(0,0,0,.25);
+      overflow:hidden;
+    `;
+
+    box.innerHTML = `
+      <div style="
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:12px;
+        padding:12px 14px;
+        background:#ede4ff;
+        border-bottom:1px solid #ddcdfc;
+      ">
+        <strong>${uiEscapeHtml(title)}</strong>
+        <button id="ui_confirm_x" class="btn btn-ghost">Fechar</button>
+      </div>
+
+      <div style="padding:14px; line-height:1.5;">
+        ${uiModalTextToHtml(message)}
+      </div>
+
+      <div style="padding:12px 14px; display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">
+        <button id="ui_confirm_cancel" class="btn btn-outline">${uiEscapeHtml(cancelText)}</button>
+        <button id="ui_confirm_ok" class="btn btn-primary">${uiEscapeHtml(okText)}</button>
+      </div>
+    `;
+
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    const finish = (result) => {
+      try { overlay.remove(); } catch(e){}
+      resolve(!!result);
+    };
+
+    const btnOk = box.querySelector('#ui_confirm_ok');
+    const btnCancel = box.querySelector('#ui_confirm_cancel');
+    const btnX = box.querySelector('#ui_confirm_x');
+
+    if (btnOk) btnOk.onclick = () => finish(true);
+    if (btnCancel) btnCancel.onclick = () => finish(false);
+    if (btnX) btnX.onclick = () => finish(false);
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) finish(false);
+    });
+
+    window.addEventListener('keydown', function esc(e){
+      if (e.key === 'Escape') {
+        window.removeEventListener('keydown', esc);
+        finish(false);
+      }
+    });
+  });
+}
+
+function uiAlert(message, title='Aviso', opts = {}){
+  const {
+    okText = 'Fechar'
+  } = opts || {};
+
+  return new Promise((resolve) => {
+    const old = document.getElementById('ui_alert_overlay');
+    if (old) old.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'ui_alert_overlay';
+    overlay.style.cssText = `
+      position:fixed;
+      inset:0;
+      z-index:999999;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:16px;
+      background:rgba(0,0,0,.45);
+    `;
+
+    const box = document.createElement('div');
+    box.style.cssText = `
+      width:min(560px, 100%);
+      background:var(--bg);
+      color:var(--text);
+      border:1px solid #d4bbff;
+      border-radius:16px;
+      box-shadow:0 18px 40px rgba(0,0,0,.25);
+      overflow:hidden;
+    `;
+
+    box.innerHTML = `
+      <div style="
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:12px;
+        padding:12px 14px;
+        background:#ede4ff;
+        border-bottom:1px solid #ddcdfc;
+      ">
+        <strong>${uiEscapeHtml(title)}</strong>
+        <button id="ui_alert_x" class="btn btn-ghost">Fechar</button>
+      </div>
+
+      <div style="padding:14px; line-height:1.5;">
+        ${uiModalTextToHtml(message)}
+      </div>
+
+      <div style="padding:12px 14px; display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">
+        <button id="ui_alert_ok" class="btn btn-primary">${uiEscapeHtml(okText)}</button>
+      </div>
+    `;
+
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    const finish = () => {
+      try { overlay.remove(); } catch(e){}
+      resolve(true);
+    };
+
+    const btnOk = box.querySelector('#ui_alert_ok');
+    const btnX = box.querySelector('#ui_alert_x');
+
+    if (btnOk) btnOk.onclick = finish;
+    if (btnX) btnX.onclick = finish;
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) finish();
+    });
+
+    window.addEventListener('keydown', function esc(e){
+      if (e.key === 'Escape') {
+        window.removeEventListener('keydown', esc);
+        finish();
+      }
+    });
+  });
+}
+
+// expiração no formato: "Expira em 5 dias (10/03/2026)" OU "Expirado há 2 dias (01/03/2026)"
+function uiContractExpiryText(expiresAt){
+  if (!expiresAt) return '(sem data)';
+
+  const dt = new Date(expiresAt);
+  if (isNaN(dt.getTime())) return '(sem data)';
+
+  const hoje = new Date();
+  // zera hora pra calcular por “dias”
+  const a = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()).getTime();
+  const b = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
+
+  const diffDias = Math.round((b - a) / 86400000);
+
+  const dataBR = dt.toLocaleDateString('pt-BR'); // dd/mm/aaaa
+
+  if (diffDias > 1) return `Expira em ${diffDias} dias (${dataBR})`;
+  if (diffDias === 1) return `Expira amanhã (${dataBR})`;
+  if (diffDias === 0) return `Expira hoje (${dataBR})`;
+  if (diffDias === -1) return `Expirou ontem (${dataBR})`;
+  return `Expirado há ${Math.abs(diffDias)} dias (${dataBR})`;
+}
+
+function uiContractLinkModal({ title='Contrato', url='', expiresAt=null, accepted=false } = {}){
+  return new Promise((resolve) => {
+    // remove modal anterior se existir
+    const old = document.getElementById('contract_modal');
+    if (old) old.remove();
+
+    const expTxt = accepted ? '' : uiContractExpiryText(expiresAt);
+    const statusTxt = accepted ? 'ACEITO ✅' : 'PENDENTE ⏳';
+
+    const overlay = document.createElement('div');
+    overlay.id = 'contract_modal';
+    overlay.style.cssText = `
+      position:fixed; inset:0; z-index:99999;
+      display:flex; align-items:center; justify-content:center;
+      padding:16px; background:rgba(0,0,0,.55);
+    `;
+
+    const box = document.createElement('div');
+    box.style.cssText = `
+      width:min(720px, 100%);
+      max-height:min(85vh, 820px);
+      overflow:auto;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid #d4bbff;
+      border-radius: 14px;
+      box-shadow: 0 18px 40px rgba(0,0,0,.25);
+      padding: 14px;
+    `;
+
+    box.innerHTML = `
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px;">
+        <div style="font-weight:900; font-size:15px;">${uiEscapeHtml(title)}</div>
+        <button id="contract_close_x" class="btn btn-ghost" style="padding:6px 10px;">✕</button>
+      </div>
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+        <span class="tag ${accepted ? 'tag-green' : 'tag-yellow'}" style="padding:4px 10px;">${uiEscapeHtml(statusTxt)}</span>
+        ${accepted ? '' : `<span class="tag" style="padding:4px 10px;">${uiEscapeHtml(expTxt)}</span>`}
+      </div>
+
+      <div style="margin-top:10px;">
+        <label style="margin:0 0 6px 0;">Link do contrato</label>
+        <textarea id="contract_link" readonly style="min-height:84px;">${uiEscapeHtml(url)}</textarea>
+        <div class="muted-sm" style="margin-top:6px;">
+          ${accepted ? 'Contrato aceito. Você pode abrir e imprimir.' : 'Copie e envie para o cliente.'}
+        </div>
+      </div>
+
+      <div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; margin-top:12px;">
+        <button id="contract_copy" class="btn btn-primary">Copiar link</button>
+        <button id="contract_open" class="btn btn-outline">Abrir</button>
+        <button id="contract_print" class="btn btn-outline">Imprimir</button>
+        <button id="contract_close" class="btn btn-ghost">Fechar</button>
+      </div>
+    `;
+
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    const textarea = box.querySelector('#contract_link');
+    const btnCopy  = box.querySelector('#contract_copy');
+    const btnOpen  = box.querySelector('#contract_open');
+    const btnPrint = box.querySelector('#contract_print');
+    const closeX   = box.querySelector('#contract_close_x');
+    const btnClose = box.querySelector('#contract_close');
+
+    const close = () => {
+      try { overlay.remove(); } catch(e){}
+      resolve(true);
+    };
+
+    closeX.onclick = close;
+    btnClose.onclick = close;
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+    window.addEventListener('keydown', function esc(e){
+      if (e.key === 'Escape') {
+        window.removeEventListener('keydown', esc);
+        close();
+      }
+    });
+
+    btnCopy.onclick = async () => {
+      let ok = false;
+      try {
+        await navigator.clipboard.writeText(url || '');
+        ok = true;
+      } catch(e) {
+        ok = false;
+      }
+
+      if (!ok) {
+        try {
+          textarea.focus();
+          textarea.select();
+          ok = document.execCommand('copy');
+        } catch(e) {
+          ok = false;
+        }
+      }
+
+      toast(ok ? 'Link copiado!' : 'Não consegui copiar automaticamente. Selecione e copie manualmente.', ok);
+    };
+
+    btnOpen.onclick = () => {
+      if (url) window.open(url, '_blank', 'noopener,noreferrer');
+    };
+
+    btnPrint.onclick = () => {
+      if (!url) return;
+      const printUrl = url + (url.includes('?') ? '&' : '?') + 'print=1';
+      window.open(printUrl, '_blank', 'noopener,noreferrer');
+    };
+  });
+}
 
 // Helpers
 function fmtMoney(v){ return 'R$ ' + Number(v||0).toFixed(2); }
@@ -947,84 +1391,392 @@ async function renderPets(){
   const view = document.getElementById('view');
   view.innerHTML = `
   <div class="grid">
-    <div class="panel">
-      <h2>Novo Pet</h2>
-<div class="field" style="position:relative;">
-  <label for="pet_tutor_input">Tutor</label>
-  <input id="pet_tutor_input" placeholder="Digite para buscar..." autocomplete="off" />
-  <div id="pet_tutor_dropdown" class="dropdown-list" style="
-    position:absolute;
-    z-index:999;
-    background:white;
-    border:1px solid #ccc;
-    border-radius:6px;
-    width:100%;
-    max-height:180px;
-    overflow-y:auto;
-    display:none;
-  "></div>
-</div>
-      ${Input('Nome', 'pet_nome')}
-      <div class="row">
-        ${Select('Espécie', 'pet_especie_sel', [
-          {value:'',label:'Selecione...'},
-          {value:'Cachorro',label:'Cachorro'},
-          {value:'Gato',label:'Gato'},
-          {value:'Outro',label:'Outro'},
-        ])}
-        ${Input('Espécie (quando "Outro")', 'pet_especie_outro')}
-      </div>
-      <div class="row">
-        <div class="field">
-          <label for="pet_raca">Raça</label>
-          <input id="pet_raca" list="racas_list" placeholder="Digite ou selecione a raça" />
-          <datalist id="racas_list"></datalist>
+    <div class="panel" style="padding:18px;">
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px;">
+        <div>
+          <h2 style="margin:0;">Novo Pet</h2>
+          <div style="font-size:13px; color:#6b6280; margin-top:4px;">
+            Cadastre ou edite o pet com dados básicos, saúde e vacinação.
+          </div>
         </div>
-        <div class="field">
-          ${Select('Sexo', 'pet_sexo', [
-            {value:'', label:'Selecione...'},
-            {value:'M', label:'M'},
-            {value:'F', label:'F'}
+        <div style="
+          padding:6px 10px;
+          border-radius:999px;
+          background:#f3ecff;
+          border:1px solid #dfcffd;
+          color:#5b3ea8;
+          font-size:12px;
+          font-weight:700;
+        ">
+          Cadastro interno
+        </div>
+      </div>
+
+      <div style="
+        border:1px solid #e7dbff;
+        border-radius:16px;
+        padding:14px;
+        background:linear-gradient(180deg, #fcfaff 0%, #f8f4ff 100%);
+        margin-bottom:14px;
+      ">
+        <div style="font-weight:800; font-size:14px; margin-bottom:10px; color:#4f3b86;">
+          Tutor responsável
+        </div>
+
+        <div class="field" style="position:relative; margin-bottom:0;">
+          <label for="pet_tutor_input">Tutor</label>
+          <input id="pet_tutor_input" placeholder="Digite para buscar o tutor..." autocomplete="off" />
+          <div style="font-size:12px; color:#7b728f; margin-top:6px;">
+            Comece digitando o nome do tutor para selecionar.
+          </div>
+          <div id="pet_tutor_dropdown" class="dropdown-list" style="
+            position:absolute;
+            z-index:999;
+            background:white;
+            border:1px solid #d9c8fb;
+            border-radius:10px;
+            width:100%;
+            max-height:180px;
+            overflow-y:auto;
+            display:none;
+            box-shadow:0 10px 26px rgba(91,62,168,.12);
+          "></div>
+
+          <div id="pet_tutor_status" style="
+            margin-top:10px;
+            display:none;
+            padding:10px 12px;
+            border:1px solid #d9c8fb;
+            border-radius:12px;
+            background:#ffffff;
+            color:#4f3b86;
+            font-size:13px;
+            font-weight:700;
+          "></div>
+
+          <div id="pet_edit_status" style="
+            margin-top:10px;
+            display:none;
+            padding:10px 12px;
+            border:1px solid #f5d38a;
+            border-radius:12px;
+            background:#fff8e8;
+            color:#7a5600;
+            font-size:13px;
+            font-weight:700;
+          "></div>
+        </div>
+      </div>
+
+      <div style="
+        border:1px solid #ece3ff;
+        border-radius:16px;
+        padding:14px;
+        background:#fff;
+        margin-bottom:14px;
+      ">
+        <div style="font-weight:800; font-size:14px; margin-bottom:12px; color:#4f3b86;">
+          Identificação do pet
+        </div>
+
+        ${Input('Nome', 'pet_nome')}
+
+        <div class="row">
+          ${Select('Espécie', 'pet_especie_sel', [
+            {value:'',label:'Selecione...'},
+            {value:'Cachorro',label:'Cachorro'},
+            {value:'Gato',label:'Gato'},
+            {value:'Outro',label:'Outro'},
           ])}
+          ${Input('Espécie (quando "Outro")', 'pet_especie_outro')}
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="pet_raca">Raça</label>
+            <input id="pet_raca" list="racas_list" placeholder="Digite ou selecione a raça" />
+            <datalist id="racas_list"></datalist>
+          </div>
+          <div class="field">
+            ${Select('Sexo', 'pet_sexo', [
+              {value:'', label:'Selecione...'},
+              {value:'M', label:'M'},
+              {value:'F', label:'F'}
+            ])}
+          </div>
+        </div>
+
+        ${Input('Nascimento (AAAA-MM-DD)', 'pet_nasc', 'date')}
+
+        <div style="
+          margin-top:10px;
+          padding:10px 12px;
+          border:1px solid #ede5ff;
+          border-radius:12px;
+          background:#faf7ff;
+        ">
+          <label class="checkbox-inline" style="
+            display:inline-flex;
+            align-items:center;
+            justify-content:flex-start;
+            gap:8px;
+            margin:0;
+            font-weight:700;
+            color:#42365f;
+          ">
+            <input id="pet_castrado" type="checkbox" style="margin:0; transform:translateY(1px);" />
+            <span>Pet castrado</span>
+          </label>
         </div>
       </div>
-      ${Input('Nascimento (AAAA-MM-DD)', 'pet_nasc', 'date')}
-      <div class="row">
-        ${Select('Doenças', 'pet_doencas_sel', [{value:'Nao',label:'Não'},{value:'Sim',label:'Sim'}])}
-        ${Select('Alergias', 'pet_alergias_sel', [{value:'Nao',label:'Não'},{value:'Sim',label:'Sim'}])}
-        ${Select('Cuidados', 'pet_cuidados_sel', [{value:'Nao',label:'Não'},{value:'Sim',label:'Sim'}])}
+
+      <div style="
+        border:1px solid #ece3ff;
+        border-radius:16px;
+        padding:14px;
+        background:#fff;
+        margin-bottom:14px;
+      ">
+        <div style="font-weight:800; font-size:14px; margin-bottom:12px; color:#4f3b86;">
+          Saúde e cuidados
+        </div>
+
+        <div class="row">
+          ${Select('Doenças', 'pet_doencas_sel', [{value:'Nao',label:'Não'},{value:'Sim',label:'Sim'}])}
+          ${Select('Alergias', 'pet_alergias_sel', [{value:'Nao',label:'Não'},{value:'Sim',label:'Sim'}])}
+          ${Select('Cuidados', 'pet_cuidados_sel', [{value:'Nao',label:'Não'},{value:'Sim',label:'Sim'}])}
+        </div>
+
+        <div id="grp_doencas">${TextArea('Descrever Doenças (se "Sim")', 'pet_doencas_txt')}</div>
+        <div id="grp_alergias">${TextArea('Descrever Alergias (se "Sim")', 'pet_alergias_txt')}</div>
+        <div id="grp_cuidados">${TextArea('Descrever Cuidados (se "Sim")', 'pet_cuidados_txt')}</div>
       </div>
-      <div id="grp_doencas">${TextArea('Descrever Doenças (se "Sim")', 'pet_doencas_txt')}</div>
-      <div id="grp_alergias">${TextArea('Descrever Alergias (se "Sim")', 'pet_alergias_txt')}</div>
-      <div id="grp_cuidados">${TextArea('Descrever Cuidados (se "Sim")', 'pet_cuidados_txt')}</div>
-<div style="margin-bottom:10px;">
-  <label class="checkbox-inline" style="display:inline-flex; align-items:center; justify-content:flex-start; gap:4px;">
-    <span>Castrado</span>
-    <input id="pet_castrado" type="checkbox" style="margin:0; transform:translateY(1px);" />
-  </label>
-</div>
+
+      <div style="
+        border:1px solid #e4d7ff;
+        border-radius:16px;
+        padding:14px;
+        background:linear-gradient(180deg, #fcfaff 0%, #f8f4ff 100%);
+        margin-bottom:14px;
+      ">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+          <div>
+            <h3 style="margin:0; font-size:16px; color:#4f3b86;">Vacinas e proteção</h3>
+            <div style="font-size:12px; color:#7b728f; margin-top:4px;">
+              Preencha apenas os itens que estiverem marcados.
+            </div>
+          </div>
+        </div>
+
+        <div style="display:grid; gap:12px;">
+
+          <div style="
+            border:1px solid #dccbfd;
+            border-radius:14px;
+            padding:14px;
+            background:#fff;
+            box-shadow:0 4px 12px rgba(91,62,168,.04);
+          ">
+            <label class="checkbox-inline" style="display:inline-flex; align-items:center; gap:8px; margin-bottom:10px; font-weight:700; color:#42365f;">
+              <input id="pet_vacina_viral" type="checkbox" />
+              <span>Vacina viral</span>
+            </label>
+
+            <div id="pet_grp_vacina_viral">
+              <div class="row">
+                ${Select('Tipo', 'pet_vacina_viral_tipo', [
+                  {value:'',label:'Selecione...'},
+                  {value:'V8',label:'V8'},
+                  {value:'V10',label:'V10'}
+                ])}
+                ${Select('Mês', 'pet_vacina_viral_mes', [
+                  {value:'',label:'Mês...'},
+                  {value:'1',label:'Janeiro'},
+                  {value:'2',label:'Fevereiro'},
+                  {value:'3',label:'Março'},
+                  {value:'4',label:'Abril'},
+                  {value:'5',label:'Maio'},
+                  {value:'6',label:'Junho'},
+                  {value:'7',label:'Julho'},
+                  {value:'8',label:'Agosto'},
+                  {value:'9',label:'Setembro'},
+                  {value:'10',label:'Outubro'},
+                  {value:'11',label:'Novembro'},
+                  {value:'12',label:'Dezembro'}
+                ])}
+                ${Input('Ano', 'pet_vacina_viral_ano')}
+              </div>
+            </div>
+          </div>
+
+          <div style="
+            border:1px solid #dccbfd;
+            border-radius:14px;
+            padding:14px;
+            background:#fff;
+            box-shadow:0 4px 12px rgba(91,62,168,.04);
+          ">
+            <label class="checkbox-inline" style="display:inline-flex; align-items:center; gap:8px; margin-bottom:10px; font-weight:700; color:#42365f;">
+              <input id="pet_vacina_antirrabica" type="checkbox" />
+              <span>Vacina antirrábica</span>
+            </label>
+
+            <div id="pet_grp_vacina_antirrabica">
+              <div class="row">
+                ${Select('Mês', 'pet_vacina_antirrabica_mes', [
+                  {value:'',label:'Mês...'},
+                  {value:'1',label:'Janeiro'},
+                  {value:'2',label:'Fevereiro'},
+                  {value:'3',label:'Março'},
+                  {value:'4',label:'Abril'},
+                  {value:'5',label:'Maio'},
+                  {value:'6',label:'Junho'},
+                  {value:'7',label:'Julho'},
+                  {value:'8',label:'Agosto'},
+                  {value:'9',label:'Setembro'},
+                  {value:'10',label:'Outubro'},
+                  {value:'11',label:'Novembro'},
+                  {value:'12',label:'Dezembro'}
+                ])}
+                ${Input('Ano', 'pet_vacina_antirrabica_ano')}
+              </div>
+            </div>
+          </div>
+
+          <div style="
+            border:1px solid #dccbfd;
+            border-radius:14px;
+            padding:14px;
+            background:#fff;
+            box-shadow:0 4px 12px rgba(91,62,168,.04);
+          ">
+            <label class="checkbox-inline" style="display:inline-flex; align-items:center; gap:8px; margin-bottom:10px; font-weight:700; color:#42365f;">
+              <input id="pet_antipulga" type="checkbox" />
+              <span>Antipulga / coleira</span>
+            </label>
+
+            <div id="pet_grp_antipulga">
+              <div class="row">
+                ${Select('Tipo', 'pet_antipulga_tipo', [
+                  {value:'',label:'Selecione...'},
+                  {value:'Comprimido',label:'Comprimido'},
+                  {value:'Pipeta',label:'Pipeta'},
+                  {value:'Spray',label:'Spray'},
+                  {value:'Coleira',label:'Coleira'},
+                  {value:'Outro',label:'Outro'}
+                ])}
+                ${Select('Mês', 'pet_antipulga_mes', [
+                  {value:'',label:'Mês...'},
+                  {value:'1',label:'Janeiro'},
+                  {value:'2',label:'Fevereiro'},
+                  {value:'3',label:'Março'},
+                  {value:'4',label:'Abril'},
+                  {value:'5',label:'Maio'},
+                  {value:'6',label:'Junho'},
+                  {value:'7',label:'Julho'},
+                  {value:'8',label:'Agosto'},
+                  {value:'9',label:'Setembro'},
+                  {value:'10',label:'Outubro'},
+                  {value:'11',label:'Novembro'},
+                  {value:'12',label:'Dezembro'}
+                ])}
+                ${Input('Ano', 'pet_antipulga_ano')}
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
       <div class="space"></div>
-      <div class="flex">
+
+      <div class="flex" style="gap:10px; flex-wrap:wrap;">
         <button class="btn btn-primary" id="pet_salvar">Salvar</button>
         <button class="btn btn-outline" id="pet_limpar">Limpar</button>
       </div>
     </div>
-    <div class="panel">
-      <div class="flex"><h2>Lista de Pets</h2><div class="right"></div></div>
-      <div class="search">
-        <input id="pet_busca" placeholder="Buscar por Nome, Raça, Tutor..." />
+
+    <div class="panel" style="padding:18px;">
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+        <div>
+          <h2 style="margin:0;">Lista de Pets</h2>
+          <div style="font-size:13px; color:#6b6280; margin-top:4px;">
+            Busque rapidamente por nome, raça, espécie ou tutor.
+          </div>
+        </div>
+
+        <div id="pet_total_badge" style="
+          padding:6px 10px;
+          border-radius:999px;
+          background:#f3ecff;
+          border:1px solid #dfcffd;
+          color:#5b3ea8;
+          font-size:12px;
+          font-weight:700;
+        ">
+          0 pets
+        </div>
+      </div>
+
+      <div class="search" style="margin-top:14px;">
+        <input id="pet_busca" placeholder="Buscar por nome do pet, raça, espécie ou tutor..." />
         <button class="btn btn-ghost" id="pet_buscar">Buscar</button>
       </div>
+
       <div class="space"></div>
-      <div class="list-scroll"><table><thead><tr>
-        <th>ID</th><th>Nome</th><th>Espécie</th><th>Raça</th><th>Tutor</th><th>Ações</th>
-      </tr></thead><tbody id="pet_tbody"></tbody></table></div>
+
+      <div class="list-scroll" style="
+        border:1px solid #eee6ff;
+        border-radius:14px;
+        overflow:hidden;
+        background:#fff;
+      ">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nome</th>
+              <th>Espécie</th>
+              <th>Raça</th>
+              <th>Tutor</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="pet_tbody"></tbody>
+        </table>
+      </div>
     </div>
   </div>`;
 
   // ==== Tutor com busca por nome (Pets) ====
 const tutorInput = document.getElementById('pet_tutor_input');
 const dropdown = document.getElementById('pet_tutor_dropdown');
+const tutorStatus = document.getElementById('pet_tutor_status');
+const editStatus = document.getElementById('pet_edit_status');
+
+function setTutorStatus(nome = '', id = null){
+  if (!tutorStatus) return;
+
+  if (nome && id) {
+    tutorStatus.style.display = 'block';
+    tutorStatus.innerHTML = `Tutor selecionado: <strong>${nome}</strong> <span style="opacity:.75;">(ID ${id})</span>`;
+  } else {
+    tutorStatus.style.display = 'none';
+    tutorStatus.innerHTML = '';
+  }
+}
+
+function setEditStatus(texto = ''){
+  if (!editStatus) return;
+
+  if (texto) {
+    editStatus.style.display = 'block';
+    editStatus.textContent = texto;
+  } else {
+    editStatus.style.display = 'none';
+    editStatus.textContent = '';
+  }
+}
 
 // guardamos selecionado
 let selectedTutorId = null;
@@ -1044,11 +1796,12 @@ function showTutorsFiltered(filtro='') {
     opt.style.padding = '6px 10px';
     opt.style.cursor = 'pointer';
 
-    opt.onclick = () => {
-      tutorInput.value = c.nome;
-      selectedTutorId = c.id;
-      dropdown.style.display = 'none';
-    };
+opt.onclick = () => {
+  tutorInput.value = c.nome;
+  selectedTutorId = c.id;
+  dropdown.style.display = 'none';
+  setTutorStatus(c.nome, c.id);
+};
 
     opt.onmouseenter = () => opt.style.background = '#eee';
     opt.onmouseleave = () => opt.style.background = '#fff';
@@ -1062,6 +1815,7 @@ function showTutorsFiltered(filtro='') {
 // quando digitar → filtra
 tutorInput.addEventListener('input', () => {
   selectedTutorId = null; // reset
+  setTutorStatus('', null);
   showTutorsFiltered(tutorInput.value.trim());
 });
 
@@ -1168,9 +1922,29 @@ document.addEventListener('click', (e) => {
     showWrap('grp_alergias', document.getElementById('pet_alergias_sel').value==='Sim');
     showWrap('grp_cuidados', document.getElementById('pet_cuidados_sel').value==='Sim');
   };
+    const updateVacinaBlocks = () => {
+    const showWrap = (wrapId, cond) => {
+      const el = document.getElementById(wrapId);
+      if (el) el.style.display = cond ? 'block' : 'none';
+    };
+
+    showWrap('pet_grp_vacina_viral', document.getElementById('pet_vacina_viral')?.checked);
+    showWrap('pet_grp_vacina_antirrabica', document.getElementById('pet_vacina_antirrabica')?.checked);
+    showWrap('pet_grp_antipulga', document.getElementById('pet_antipulga')?.checked);
+  };
   document.getElementById('pet_especie_sel').onchange = updateEspecieOutro;
-  ['pet_doencas_sel','pet_alergias_sel','pet_cuidados_sel'].forEach(id=>document.getElementById(id).onchange=updateCondTexts);
-  updateEspecieOutro(); updateCondTexts();
+  ['pet_doencas_sel','pet_alergias_sel','pet_cuidados_sel'].forEach(id => {
+    document.getElementById(id).onchange = updateCondTexts;
+  });
+
+  ['pet_vacina_viral','pet_vacina_antirrabica','pet_antipulga'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.onchange = updateVacinaBlocks;
+  });
+
+  updateEspecieOutro();
+  updateCondTexts();
+  updateVacinaBlocks();
 
   document.getElementById('pet_salvar').onclick = async () => {
     const get = id => document.getElementById(id);
@@ -1179,7 +1953,7 @@ document.addEventListener('click', (e) => {
     const tutorId = Number(selectedTutorId);
     if (!tutorId) {
       toast('O campo Tutor não pode ficar vazio', false);
-      get('pet_tutor').focus();
+      get('pet_tutor_input').focus();
       return;
     }
 
@@ -1228,13 +2002,29 @@ document.addEventListener('click', (e) => {
       raca:       get('pet_raca').value.trim(),
       sexo:       get('pet_sexo').value,
       nascimento: get('pet_nasc').value,
+
       doencasFlag:   get('pet_doencas_sel').value === 'Sim',
       doencasTexto:  get('pet_doencas_txt').value.trim(),
       alergiasFlag:  get('pet_alergias_sel').value === 'Sim',
       alergiasTexto: get('pet_alergias_txt').value.trim(),
       cuidadosFlag:  get('pet_cuidados_sel').value === 'Sim',
       cuidadosTexto: get('pet_cuidados_txt').value.trim(),
+
       castrado:      get('pet_castrado').checked,
+
+      vacinaViral:      get('pet_vacina_viral').checked,
+      vacinaViralTipo:  get('pet_vacina_viral_tipo').value,
+      vacinaViralMes:   get('pet_vacina_viral_mes').value || null,
+      vacinaViralAno:   get('pet_vacina_viral_ano').value.trim() || null,
+
+      vacinaAntirrabica:     get('pet_vacina_antirrabica').checked,
+      vacinaAntirrabicaMes:  get('pet_vacina_antirrabica_mes').value || null,
+      vacinaAntirrabicaAno:  get('pet_vacina_antirrabica_ano').value.trim() || null,
+
+      antipulga:      get('pet_antipulga').checked,
+      antipulgaTipo:  get('pet_antipulga_tipo').value,
+      antipulgaMes:   get('pet_antipulga_mes').value || null,
+      antipulgaAno:   get('pet_antipulga_ano').value.trim() || null,
     };
 
     const id = await DB.add('pets', rec);
@@ -1254,17 +2044,100 @@ document.addEventListener('click', (e) => {
   loadPets('');
 }
 async function loadPets(q){
-  const tbody = document.getElementById('pet_tbody'); tbody.innerHTML='';
-  const list = await DB.list('pets', q);
-  const clientes = await DB.list('clientes'); const byId = Object.fromEntries(clientes.map(c=>[c.id,c]));
-  for (const p of list.sort((a,b)=>a.nome.localeCompare(b.nome))) {
+  const tbody = document.getElementById('pet_tbody');
+  const badge = document.getElementById('pet_total_badge');
+
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  const pets = await DB.list('pets');
+  const clientes = await DB.list('clientes');
+  const byId = Object.fromEntries(clientes.map(c => [c.id, c]));
+
+  const termo = (q || '').trim().toLowerCase();
+
+  let list = pets;
+
+  if (termo) {
+    list = pets.filter(p => {
+      const tutorNome = String(byId[p.tutorId]?.nome || '').toLowerCase();
+      const nome = String(p.nome || '').toLowerCase();
+      const especie = String(p.especie || '').toLowerCase();
+      const raca = String(p.raca || '').toLowerCase();
+
+      const texto = `${nome} ${especie} ${raca} ${tutorNome}`.toLowerCase();
+      return texto.includes(termo);
+    });
+  }
+
+  list.sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || '')));
+
+  if (badge) {
+    const total = list.length;
+    badge.textContent = `${total} pet${total !== 1 ? 's' : ''}`;
+  }
+
+  if (!list.length) {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${p.id}</td><td>${p.nome}</td><td>${p.especie||''}</td><td>${p.raca||''}</td><td>${byId[p.tutorId]?.nome||p.tutorId}</td>
-    <td class="flex"><button class="btn btn-ghost" data-edit="${p.id}">Editar</button><button class="btn btn-danger" data-del="${p.id}">Excluir</button></td>`;
+    tr.innerHTML = `
+      <td colspan="6" style="padding:18px;">
+        <div style="
+          border:1px dashed #d9c8fb;
+          border-radius:14px;
+          padding:18px;
+          background:#fcfaff;
+          text-align:center;
+          color:#6b6280;
+        ">
+          <div style="font-weight:800; color:#4f3b86; margin-bottom:4px;">
+            Nenhum pet encontrado
+          </div>
+          <div style="font-size:13px;">
+            ${termo ? 'Tente buscar por outro nome, raça, espécie ou tutor.' : 'Ainda não existem pets cadastrados.'}
+          </div>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(tr);
+    return;
+  }
+
+  for (const p of list) {
+    const tutorNome = byId[p.tutorId]?.nome || p.tutorId || '';
+    const especie = p.especie || '';
+    const raca = p.raca || '';
+
+    const vacinaViral = !!(p.vacinaViral ?? p.vacina_viral);
+    const vacinaAntirrabica = !!(p.vacinaAntirrabica ?? p.vacina_antirrabica);
+    const antipulga = !!(p.antipulga ?? p.antipulga);
+
+    const chips = [];
+    if (vacinaViral) chips.push('<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#efe7ff; color:#5b3ea8; font-size:11px; font-weight:700;">Viral</span>');
+    if (vacinaAntirrabica) chips.push('<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#e8f7ff; color:#11607a; font-size:11px; font-weight:700;">Antirrábica</span>');
+    if (antipulga) chips.push('<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#eefbf1; color:#1f7a38; font-size:11px; font-weight:700;">Antipulga</span>');
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${p.id}</td>
+      <td>
+        <div style="font-weight:800; color:#2f2447;">${p.nome || ''}</div>
+        <div style="font-size:12px; color:#7b728f; margin-top:4px;">
+          ${chips.length ? chips.join(' ') : '<span style="opacity:.7;">Sem vacinas/proteções marcadas</span>'}
+        </div>
+      </td>
+      <td>${especie}</td>
+      <td>${raca}</td>
+      <td>${tutorNome}</td>
+      <td class="flex">
+        <button class="btn btn-ghost" data-edit="${p.id}">Editar</button>
+        <button class="btn btn-danger" data-del="${p.id}">Excluir</button>
+      </td>
+    `;
     tbody.appendChild(tr);
   }
-  $all('[data-edit]').forEach(b=>b.onclick=()=>editPet(b.getAttribute('data-edit')));
-  $all('[data-del]').forEach(b=>b.onclick=()=>delPet(b.getAttribute('data-del')));
+
+  $all('[data-edit]').forEach(b => b.onclick = () => editPet(b.getAttribute('data-edit')));
+  $all('[data-del]').forEach(b => b.onclick = () => delPet(b.getAttribute('data-del')));
 }
 async function editPet(id){
 	id = Number(id);
@@ -1272,6 +2145,18 @@ async function editPet(id){
   // Preenche o tutor no campo novo (input com busca)
 const tutor = await DB.get('clientes', p.tutorId);
 document.getElementById('pet_tutor_input').value = tutor?.nome || '';
+const tutorStatus = document.getElementById('pet_tutor_status');
+if (tutorStatus && tutor?.nome && p.tutorId) {
+  tutorStatus.style.display = 'block';
+  tutorStatus.innerHTML = `Tutor selecionado: <strong>${tutor.nome}</strong> <span style="opacity:.75;">(ID ${p.tutorId})</span>`;
+}
+
+const editStatus = document.getElementById('pet_edit_status');
+if (editStatus) {
+  editStatus.style.display = 'block';
+  editStatus.textContent = `Modo edição: você está editando o pet "${p.nome || ''}" (ID ${p.id}).`;
+}
+
 // Atualiza o ID selecionado (mesma lógica do dropdown)
 try { selectedTutorId = p.tutorId; } catch (e) {}
 const dd = document.getElementById('pet_tutor_dropdown');
@@ -1290,15 +2175,50 @@ if (dd) dd.style.display = 'none';
   document.getElementById('pet_alergias_txt').value = p.alergiasTexto||'';
   document.getElementById('pet_cuidados_txt').value = p.cuidadosTexto||'';
   document.getElementById('pet_castrado').checked = !!p.castrado;
-  const ev=new Event('change'); document.getElementById('pet_especie_sel').dispatchEvent(ev);
-  ['pet_doencas_sel','pet_alergias_sel','pet_cuidados_sel'].forEach(id=>document.getElementById(id).dispatchEvent(ev));
+  document.getElementById('pet_vacina_viral').checked =
+    !!(p.vacinaViral ?? p.vacina_viral);
+  document.getElementById('pet_vacina_viral_tipo').value =
+    p.vacinaViralTipo ?? p.vacina_viral_tipo ?? '';
+  document.getElementById('pet_vacina_viral_mes').value =
+    p.vacinaViralMes ?? p.vacina_viral_mes ?? '';
+  document.getElementById('pet_vacina_viral_ano').value =
+    p.vacinaViralAno ?? p.vacina_viral_ano ?? '';
+
+  document.getElementById('pet_vacina_antirrabica').checked =
+    !!(p.vacinaAntirrabica ?? p.vacina_antirrabica);
+  document.getElementById('pet_vacina_antirrabica_mes').value =
+    p.vacinaAntirrabicaMes ?? p.vacina_antirrabica_mes ?? '';
+  document.getElementById('pet_vacina_antirrabica_ano').value =
+    p.vacinaAntirrabicaAno ?? p.vacina_antirrabica_ano ?? '';
+
+  document.getElementById('pet_antipulga').checked =
+    !!(p.antipulga);
+  document.getElementById('pet_antipulga_tipo').value =
+    p.antipulgaTipo ?? p.antipulga_tipo ?? '';
+  document.getElementById('pet_antipulga_mes').value =
+    p.antipulgaMes ?? p.antipulga_mes ?? '';
+  document.getElementById('pet_antipulga_ano').value =
+    p.antipulgaAno ?? p.antipulga_ano ?? '';
+  const ev = new Event('change');
+  document.getElementById('pet_especie_sel').dispatchEvent(ev);
+  ['pet_doencas_sel','pet_alergias_sel','pet_cuidados_sel'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.dispatchEvent(ev);
+  });
+  ['pet_vacina_viral','pet_vacina_antirrabica','pet_antipulga'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.dispatchEvent(ev);
+  });
   const salvar = document.getElementById('pet_salvar');
   salvar.textContent = 'Atualizar';
+  const limpar = document.getElementById('pet_limpar');
+if (limpar) limpar.textContent = 'Cancelar edição';
+  
   salvar.onclick = async () => {
     const get = id => document.getElementById(id);
 
     // 1) Tutor obrigatório
-    p.tutorId = Number(get('pet_tutor').value);
+        p.tutorId = Number(selectedTutorId);
     if (!p.tutorId) {
       toast('O campo Tutor não pode ficar vazio', false);
       get('pet_tutor_input').focus();
@@ -1354,6 +2274,20 @@ if (dd) dd.style.display = 'none';
     p.cuidadosFlag  = get('pet_cuidados_sel').value === 'Sim';
     p.cuidadosTexto = get('pet_cuidados_txt').value.trim();
     p.castrado    = get('pet_castrado').checked;
+	
+	p.vacinaViral = get('pet_vacina_viral').checked;
+    p.vacinaViralTipo = get('pet_vacina_viral_tipo').value;
+    p.vacinaViralMes = get('pet_vacina_viral_mes').value || null;
+    p.vacinaViralAno = get('pet_vacina_viral_ano').value.trim() || null;
+
+    p.vacinaAntirrabica = get('pet_vacina_antirrabica').checked;
+    p.vacinaAntirrabicaMes = get('pet_vacina_antirrabica_mes').value || null;
+    p.vacinaAntirrabicaAno = get('pet_vacina_antirrabica_ano').value.trim() || null;
+
+    p.antipulga = get('pet_antipulga').checked;
+    p.antipulgaTipo = get('pet_antipulga_tipo').value;
+    p.antipulgaMes = get('pet_antipulga_mes').value || null;
+    p.antipulgaAno = get('pet_antipulga_ano').value.trim() || null;
 
     await DB.put('pets', p);
     await DB.add('logs', {
@@ -1434,7 +2368,7 @@ async function renderHosp(){
       </div>
       <div class="space"></div>
       <div class="list-scroll"><table><thead><tr>
-        <th>ID</th><th>Período</th><th>Tutor & Pets</th><th>Valor</th><th>Status</th><th>Ações</th>
+        <th>ID</th><th>Período</th><th>Tutor & Pets</th><th>Valor</th><th>Contrato</th><th>Status</th><th>Ações</th>
       </tr></thead><tbody id="h_tbody"></tbody></table></div>
     </div>
   </div>`;
@@ -1655,6 +2589,26 @@ async function loadHosp(q){
   const pets = await DB.list('pets');
   const byPet = Object.fromEntries(pets.map(p => [p.id, p]));
 
+// ✅ contratos (para pintar status do "Contrato")
+// (não pode quebrar a lista se a tabela/policy der erro)
+let contratos = [];
+try {
+  contratos = await DB.list('contratos');
+} catch (e) {
+  console.warn("Aviso: não foi possível carregar contratos (lista continua mesmo assim).", e);
+  contratos = [];
+}
+
+  // pega o contrato mais recente por (kind|ref_id)
+const byContrato = {};
+for (const c of (contratos || [])) {
+  const ref = (c.ref_id ?? c.refId ?? c.refID); // ✅ pega o nome certo vindo do Supabase
+  const key = `${c.kind}|${ref}`;
+  if (!byContrato[key] || Number(c.id) > Number(byContrato[key].id)) {
+    byContrato[key] = c;
+  }
+}
+
   let list = all;
 
   // se tiver texto de busca, filtra por Tutor, Pet e Período
@@ -1696,23 +2650,59 @@ async function loadHosp(q){
     const tutor = byCli[h.tutorId]?.nome || ('Tutor #'+h.tutorId);
     const petNames = (h.petIds||[]).map(id=>byPet[id]?.nome||('#'+id)).join(', ');
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${h.id}</td>
-      <td>${fmtBR(h.dataEntrada)} → ${fmtBR(h.dataSaida)}</td>
-      <td><strong>${tutor}</strong> — ${petNames}</td>
-      <td>${fmtMoney(h.valor)}</td>
-      <td>
-        <span class="tag">${h.status||''}</span>
-        ${h.nota && h.nota.trim() ? ' <span title="Tem observações">📝</span>' : ''}
-      </td>
-      <td class="flex">
-        <button class="btn btn-ghost" data-edit="${h.id}">Editar</button>
-        <button class="btn btn-danger" data-del="${h.id}">Excluir</button>
-      </td>`;
+	const ckey = `hospedagem|${h.id}`;
+const c = byContrato[ckey];
+
+let contratoClass = 'tag-red';
+let contratoTitle = 'Contrato NÃO gerado (clique para pegar/gerar o link)';
+
+if (c) {
+  if (__isAcceptedContract(c)) {
+    contratoClass = 'tag-green';
+    contratoTitle = 'Contrato ACEITO (clique para copiar/pegar o link)';
+  } else {
+    contratoClass = 'tag-yellow';
+    contratoTitle = 'Contrato PENDENTE (clique para copiar/pegar o link)';
+  }
+}
+tr.innerHTML = `<td>${h.id}</td>
+  <td>${fmtBR(h.dataEntrada)} → ${fmtBR(h.dataSaida)}</td>
+  <td><strong>${tutor}</strong> — ${petNames}</td>
+  <td>${fmtMoney(h.valor)}</td>
+
+  <td>
+    <span class="tag ${contratoClass}" data-contrato="${h.id}" title="${contratoTitle}" style="cursor:pointer;">
+      Contrato
+    </span>
+  </td>
+
+  <td>
+    <span class="tag">${h.status||''}</span>
+    ${h.nota && h.nota.trim() ? ' <span title="Tem observações">📝</span>' : ''}
+  </td>
+
+  <td class="flex">
+    <button class="btn btn-ghost" data-edit="${h.id}">Editar</button>
+    <button class="btn btn-danger" data-del="${h.id}">Excluir</button>
+  </td>`;
     tbody.appendChild(tr);
   }
 
   $all('[data-edit]').forEach(b=>b.onclick=()=>editHosp(b.getAttribute('data-edit')));
   $all('[data-del]').forEach(b=>b.onclick=()=>delHosp(b.getAttribute('data-del')));
+$all('[data-contrato]').forEach(b => b.onclick = async () => {
+  const id = Number(b.getAttribute('data-contrato'));
+  try{
+    await showContractLink('hospedagem', id);
+
+    // repinta a lista depois de fechar (caso o contrato tenha sido aceito)
+    const q = document.getElementById('h_search')?.value || '';
+    await loadHosp(q);
+  } catch(e){
+    console.error(e);
+    toast('Não consegui abrir o contrato. Veja o console.', false);
+  }
+});
 }
 
 async function delHosp(id){
@@ -2565,6 +3555,81 @@ if (!document.getElementById('tutor_overlay')) {
     </div>
   `;
   document.body.appendChild(modal);
+}
+
+// ——— MODAL (overlay) para LINK DO CONTRATO ———
+if (!document.getElementById('contrato_overlay')) {
+  const modal = document.createElement('div');
+  modal.id = 'contrato_overlay';
+  modal.style.cssText = `
+    position:fixed; inset:0; display:none; align-items:center; justify-content:center;
+    background:rgba(0,0,0,0.35); z-index:99999; padding:16px;
+  `;
+  modal.innerHTML = `
+    <div style="
+      background:var(--panel); color:var(--text); min-width:320px; max-width:640px; width:100%;
+      border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.35); overflow:hidden;">
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 14px;
+                  background:#ede4ff; border-bottom:1px solid #ddcdfc; color:var(--text);">
+        <strong id="contrato_overlay_title">Contrato</strong>
+        <button id="contrato_overlay_close" class="btn btn-ghost">Fechar</button>
+      </div>
+
+      <div id="contrato_overlay_body" style="padding:12px; max-height:70vh; overflow:auto;"></div>
+
+      <div style="padding:12px; display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">
+        <button id="contrato_overlay_copy" class="btn btn-primary">Copiar link</button>
+        <button id="contrato_overlay_open" class="btn btn-outline">Abrir</button>
+        <button id="contrato_overlay_ok" class="btn btn-ghost">Fechar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  const close = () => { modal.style.display = 'none'; };
+  document.getElementById('contrato_overlay_close').onclick = close;
+  document.getElementById('contrato_overlay_ok').onclick = close;
+}
+
+// abre o overlay com dados
+async function openContratoOverlay({ title, url, expiresAt, statusText }){
+    // ✅ garante que o modal exista (se ainda não foi criado)
+  if (!document.getElementById('contrato_overlay')) {
+    createContratoOverlay();
+  }
+  const modal = document.getElementById('contrato_overlay');
+  const body  = document.getElementById('contrato_overlay_body');
+  const ttl   = document.getElementById('contrato_overlay_title');
+  const btnCopy = document.getElementById('contrato_overlay_copy');
+  const btnOpen = document.getElementById('contrato_overlay_open');
+
+  ttl.textContent = title || 'Contrato';
+
+  const expTxt = expiresAt ? new Date(expiresAt).toLocaleString() : '—';
+
+  body.innerHTML = `
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <span class="tag">${statusText || 'Contrato gerado'}</span>
+      <span class="tag">Expira em: <strong>${expTxt}</strong></span>
+    </div>
+
+    <div style="margin-top:10px;">
+      <label style="margin:0 0 6px 0;">Link do contrato</label>
+      <textarea id="contrato_overlay_link" readonly style="min-height:80px;">${url || ''}</textarea>
+      <div class="muted-sm" style="margin-top:6px;">Você pode copiar e mandar para o cliente quando quiser.</div>
+    </div>
+  `;
+
+  btnCopy.onclick = async () => {
+    try { await navigator.clipboard.writeText(url); } catch(e) {}
+    toast("Link copiado!");
+  };
+
+  btnOpen.onclick = () => {
+    if (url) window.open(url, '_blank');
+  };
+
+  modal.style.display = 'flex';
 }
 
   let start = new Date();
@@ -4385,6 +5450,1473 @@ async function receberPagamento(kind, refId){
   toast('Pagamento registrado'); renderPagamentos();
 }
 
+// ==== PRÉ-CADASTROS ====
+let __preCadOffset = 0;
+const __PRE_CAD_PAGE = 100;
+
+function preCadStatusTag(status){
+  const s = String(status || '').toLowerCase();
+
+  if (s === 'aprovado') {
+    return `<span class="tag tag-green">Aprovado</span>`;
+  }
+  if (s === 'rejeitado') {
+    return `<span class="tag tag-red">Rejeitado</span>`;
+  }
+  return `<span class="tag tag-yellow">Pendente</span>`;
+}
+
+function preCadFmtDate(dt){
+  if (!dt) return '';
+  try{
+    return new Date(dt).toLocaleString('pt-BR');
+  }catch(e){
+    return dt;
+  }
+}
+
+async function renderPreCadastros(){
+  const view = document.getElementById('view');
+
+  view.innerHTML = `
+    <div class="panel">
+      <div class="flex">
+        <h2>Pré-cadastros recebidos</h2>
+        <div class="right" style="display:flex; gap:8px; align-items:center;">
+          <button class="btn btn-outline" id="pre_refresh">Atualizar</button>
+        </div>
+      </div>
+
+      <div class="muted-sm" style="margin-bottom:10px;">
+        Aqui aparecem os cadastros enviados pelo formulário público antes da aprovação final.
+      </div>
+
+      <div class="list-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Data</th>
+              <th>Nome</th>
+              <th>CPF</th>
+              <th>Telefone</th>
+              <th>Pets</th>
+              <th>Status</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="pre_tbody">
+            <tr>
+              <td colspan="8" class="muted-sm">Carregando pré-cadastros...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; margin-top:10px;">
+        <button class="btn btn-outline" id="pre_more">Carregar mais</button>
+      </div>
+    </div>
+  `;
+
+  const btnRefresh = document.getElementById('pre_refresh');
+  const btnMore = document.getElementById('pre_more');
+
+  if (btnRefresh) btnRefresh.onclick = () => loadPreCadastros(true);
+  if (btnMore) btnMore.onclick = () => loadPreCadastros(false);
+
+  loadPreCadastros(true);
+}
+
+async function loadPreCadastros(reset = false){
+  const tbody = document.getElementById('pre_tbody');
+  const btnMore = document.getElementById('pre_more');
+  if (!tbody) return;
+
+  if (reset) {
+    tbody.innerHTML = '';
+    __preCadOffset = 0;
+  }
+
+  let rows = [];
+  let pets = [];
+
+  try{
+    rows = await DB.page('pre_cadastros', {
+      limit: __PRE_CAD_PAGE,
+      offset: __preCadOffset,
+      orderBy: 'created_at',
+      ascending: false
+    });
+
+    pets = await DB.list('pre_cadastro_pets');
+  }catch(e){
+    console.error('Erro ao carregar pré-cadastros:', e);
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="8" style="color:#991b1b;">
+          Erro ao carregar pré-cadastros. Veja o console.
+        </td>
+      </tr>
+    `;
+    if (btnMore) btnMore.style.display = 'none';
+    return;
+  }
+
+  if (reset && !rows.length) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="8" class="muted-sm">Nenhum pré-cadastro encontrado.</td>
+      </tr>
+    `;
+    if (btnMore) btnMore.style.display = 'none';
+    return;
+  }
+
+  const petsCountByPreId = {};
+  for (const p of (pets || [])) {
+    const preId = Number(p.preCadastroId ?? p.pre_cadastro_id ?? 0);
+    if (!preId) continue;
+    petsCountByPreId[preId] = (petsCountByPreId[preId] || 0) + 1;
+  }
+
+  for (const r of rows) {
+    const tr = document.createElement('tr');
+
+    const qtdPets = petsCountByPreId[Number(r.id)] || 0;
+
+    tr.innerHTML = `
+      <td>${r.id ?? ''}</td>
+      <td>${preCadFmtDate(r.createdAt || r.created_at)}</td>
+      <td>${r.nome || ''}</td>
+      <td>${r.cpf || ''}</td>
+      <td>${r.telefone || ''}</td>
+      <td style="text-align:center;">${qtdPets}</td>
+      <td>${preCadStatusTag(r.status)}</td>
+      <td class="flex">
+        <button class="btn btn-ghost" data-pre-open="${r.id}">Abrir</button>
+      </td>
+    `;
+
+    tbody.appendChild(tr);
+  }
+
+  __preCadOffset += rows.length;
+
+  if (btnMore) {
+    btnMore.style.display = rows.length < __PRE_CAD_PAGE ? 'none' : '';
+  }
+
+  $all('[data-pre-open]').forEach(b => {
+    b.onclick = async () => {
+      const id = Number(b.getAttribute('data-pre-open'));
+      await openPreCadastroDetails(id);
+    };
+  });
+}
+
+function preCadText(v){
+  return (v ?? '').toString().trim();
+}
+
+function preCadYesNo(v){
+  return v ? 'Sim' : 'Não';
+}
+
+function preCadFmtBirth(v){
+  if (!v) return '';
+  try{
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(v))) {
+      return fmtBR(String(v));
+    }
+    return new Date(v).toLocaleDateString('pt-BR');
+  }catch(e){
+    return String(v);
+  }
+}
+
+function preCadField(label, value){
+  const val = preCadText(value) || '—';
+  return `
+    <div style="display:flex; flex-direction:column; gap:4px;">
+      <div class="muted-sm" style="font-weight:700;">${uiEscapeHtml(label)}</div>
+      <div style="
+        min-height:42px;
+        padding:10px 12px;
+        border:1px solid #d4bbff;
+        border-radius:12px;
+        background:#fff;
+        line-height:1.35;
+      ">${uiEscapeHtml(val)}</div>
+    </div>
+  `;
+}
+
+function preCadPetCardHtml(p, idx){
+  const vacinas = [];
+
+  if (p.vacinaViral || p.vacina_viral) {
+    const tipoViral = String(p.vacinaViralTipo ?? p.vacina_viral_tipo ?? '').trim() || '—';
+    const mesViral = String(p.vacinaViralMes ?? p.vacina_viral_mes ?? '').trim() || '—';
+    const anoViral = String(p.vacinaViralAno ?? p.vacina_viral_ano ?? '').trim() || '—';
+    vacinas.push(`Vacina viral (${tipoViral}): ${mesViral}/${anoViral}`);
+  }
+
+  if (p.vacinaAntirrabica || p.vacina_antirrabica) {
+    vacinas.push(`Antirrábica: ${String(p.vacinaAntirrabicaMes ?? p.vacina_antirrabica_mes ?? '').trim() || '—'}/${String(p.vacinaAntirrabicaAno ?? p.vacina_antirrabica_ano ?? '').trim() || '—'}`);
+  }
+
+  if (p.antipulga) {
+    const tipoAntiPulga = String(p.antipulgaTipo ?? p.antipulga_tipo ?? '').trim() || '—';
+    const mesAntiPulga = String(p.antipulgaMes ?? p.antipulga_mes ?? '').trim() || '—';
+    const anoAntiPulga = String(p.antipulgaAno ?? p.antipulga_ano ?? '').trim() || '—';
+    vacinas.push(`Antipulga (${tipoAntiPulga}): ${mesAntiPulga}/${anoAntiPulga}`);
+  }
+
+  const alimentacaoTipo = p.alimentacaoTipo ?? p.alimentacao_tipo ?? '';
+  const alimentacaoTexto = p.alimentacaoTexto ?? p.alimentacao_texto ?? '';
+
+  return `
+    <div style="
+      border:1px solid #d4bbff;
+      border-radius:14px;
+      padding:12px;
+      background:#fff;
+      margin-top:10px;
+    ">
+      <div style="
+        display:flex;
+        align-items:flex-start;
+        justify-content:space-between;
+        gap:12px;
+        margin-bottom:12px;
+        flex-wrap:wrap;
+        padding:12px;
+        border:1px solid #eadcff;
+        border-radius:12px;
+        background:linear-gradient(180deg,#fcfaff 0%, #f6efff 100%);
+      ">
+        <div style="min-width:220px; flex:1;">
+          <div style="
+            display:inline-flex;
+            align-items:center;
+            gap:6px;
+            padding:4px 10px;
+            border-radius:999px;
+            background:#ede4ff;
+            border:1px solid #d9c2ff;
+            color:#6b21a8;
+            font-size:11px;
+            font-weight:900;
+            margin-bottom:8px;
+          ">
+            PET ${idx + 1}
+          </div>
+
+          <div style="
+            font-weight:900;
+            font-size:18px;
+            line-height:1.15;
+            color:#111827;
+            margin-bottom:4px;
+          ">
+            ${uiEscapeHtml(preCadText(p.nome) || 'Sem nome')}
+          </div>
+
+          <div class="muted-sm" style="line-height:1.4;">
+            <strong>Raça:</strong> ${uiEscapeHtml(preCadText(p.raca) || '—')}
+            &nbsp;•&nbsp;
+            <strong>Nascimento:</strong> ${uiEscapeHtml(preCadText(p.nascimento) || '—')}
+          </div>
+        </div>
+
+        <div style="
+          display:flex;
+          gap:8px;
+          flex-wrap:wrap;
+          align-items:center;
+          justify-content:flex-end;
+        ">
+          <span class="tag">${uiEscapeHtml(preCadText(p.especie) || 'Sem espécie')}</span>
+          <span class="tag">${uiEscapeHtml(preCadText(p.sexo) || 'Sem sexo')}</span>
+          <span class="tag ${p.castrado ? 'tag-green' : 'tag-yellow'}">
+            ${p.castrado ? 'Castrado' : 'Não castrado'}
+          </span>
+        </div>
+      </div>
+
+      <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px;">
+        ${preCadField('Nome', p.nome)}
+        ${preCadField('Espécie', p.especie)}
+        ${preCadField('Raça', p.raca)}
+        ${preCadField('Sexo', p.sexo)}
+        ${preCadField('Nascimento', preCadFmtBirth(p.nascimento))}
+        ${preCadField('Peso', p.peso)}
+        ${preCadField('Castrado', preCadYesNo(p.castrado))}
+        ${preCadField('Alergias', preCadYesNo(p.alergiasFlag ?? p.alergias_flag))}
+        ${preCadField('Texto alergias', p.alergiasTexto ?? p.alergias_texto)}
+        ${preCadField('Doenças', preCadYesNo(p.doencasFlag ?? p.doencas_flag))}
+        ${preCadField('Texto doenças', p.doencasTexto ?? p.doencas_texto)}
+        ${preCadField('Cuidados especiais', preCadYesNo(p.cuidadosFlag ?? p.cuidados_flag))}
+        ${preCadField('Texto cuidados', p.cuidadosTexto ?? p.cuidados_texto)}
+        ${preCadField('Tipo de alimentação', alimentacaoTipo)}
+        ${preCadField('Detalhes da alimentação', alimentacaoTexto)}
+        ${preCadField('Vacinas', vacinas.length ? vacinas.join(' | ') : '—')}
+      </div>
+    </div>
+  `;
+}
+
+function preCadAttr(v){
+  return uiEscapeHtml((v ?? '').toString());
+}
+
+function preCadInputEdit(label, id, value, type='text', extra=''){
+  return `
+    <div style="display:flex; flex-direction:column; gap:4px;">
+      <label for="${preCadAttr(id)}" class="muted-sm" style="font-weight:700;">${uiEscapeHtml(label)}</label>
+      <input
+        id="${preCadAttr(id)}"
+        type="${preCadAttr(type)}"
+        value="${preCadAttr(value)}"
+        ${extra || ''}
+        style="
+          min-height:42px;
+          padding:10px 12px;
+          border:1px solid #d4bbff;
+          border-radius:12px;
+          background:#fff;
+        "
+      />
+    </div>
+  `;
+}
+
+function preCadTextareaEdit(label, id, value, rows=3){
+  return `
+    <div style="display:flex; flex-direction:column; gap:4px;">
+      <label for="${preCadAttr(id)}" class="muted-sm" style="font-weight:700;">${uiEscapeHtml(label)}</label>
+      <textarea
+        id="${preCadAttr(id)}"
+        rows="${Number(rows) || 3}"
+        style="
+          min-height:84px;
+          padding:10px 12px;
+          border:1px solid #d4bbff;
+          border-radius:12px;
+          background:#fff;
+          resize:vertical;
+        "
+      >${preCadAttr(value)}</textarea>
+    </div>
+  `;
+}
+
+function preCadSelectYesNo(label, id, value){
+  const sim = value ? 'selected' : '';
+  const nao = !value ? 'selected' : '';
+  return `
+    <div style="display:flex; flex-direction:column; gap:4px;">
+      <label for="${preCadAttr(id)}" class="muted-sm" style="font-weight:700;">${uiEscapeHtml(label)}</label>
+      <select
+        id="${preCadAttr(id)}"
+        style="
+          min-height:42px;
+          padding:10px 12px;
+          border:1px solid #d4bbff;
+          border-radius:12px;
+          background:#fff;
+        "
+      >
+        <option value="Nao" ${nao}>Não</option>
+        <option value="Sim" ${sim}>Sim</option>
+      </select>
+    </div>
+  `;
+}
+
+function preCadPetEditorHtml(p, idx){
+  const pid = Number(p.id || 0);
+  const prefix = `prepet_${pid}_`;
+
+  return `
+    <div style="
+      border:1px solid #d4bbff;
+      border-radius:14px;
+      padding:12px;
+      background:#fff;
+      margin-top:10px;
+    ">
+      <div style="
+        display:flex;
+        align-items:flex-start;
+        justify-content:space-between;
+        gap:12px;
+        margin-bottom:12px;
+        flex-wrap:wrap;
+        padding:12px;
+        border:1px solid #eadcff;
+        border-radius:12px;
+        background:linear-gradient(180deg,#fcfaff 0%, #f6efff 100%);
+      ">
+        <div style="min-width:220px; flex:1;">
+          <div style="
+            display:inline-flex;
+            align-items:center;
+            gap:6px;
+            padding:4px 10px;
+            border-radius:999px;
+            background:#ede4ff;
+            border:1px solid #d9c2ff;
+            color:#6b21a8;
+            font-size:11px;
+            font-weight:900;
+            margin-bottom:8px;
+          ">
+            PET ${idx + 1}
+          </div>
+
+          <div style="
+            font-weight:900;
+            font-size:18px;
+            line-height:1.15;
+            color:#111827;
+            margin-bottom:4px;
+          ">
+            ${uiEscapeHtml(preCadText(p.nome) || 'Sem nome')}
+          </div>
+
+          <div class="muted-sm" style="line-height:1.4;">
+            <strong>Raça:</strong> ${uiEscapeHtml(preCadText(p.raca) || '—')}
+            &nbsp;•&nbsp;
+            <strong>Nascimento:</strong> ${uiEscapeHtml(preCadText(p.nascimento) || '—')}
+          </div>
+        </div>
+
+        <div style="
+          display:flex;
+          gap:8px;
+          flex-wrap:wrap;
+          align-items:center;
+          justify-content:flex-end;
+        ">
+          <span class="tag">${uiEscapeHtml(preCadText(p.especie) || 'Sem espécie')}</span>
+          <span class="tag">${uiEscapeHtml(preCadText(p.sexo) || 'Sem sexo')}</span>
+          <span class="tag ${p.castrado ? 'tag-green' : 'tag-yellow'}">
+            ${p.castrado ? 'Castrado' : 'Não castrado'}
+          </span>
+        </div>
+      </div>
+
+      <div id="${prefix}status_cards" style="
+        display:flex;
+        gap:8px;
+        flex-wrap:wrap;
+        margin:-2px 0 12px 0;
+      ">
+        <span id="${prefix}badge_alergias" class="tag ${(p.alergiasFlag ?? p.alergias_flag) ? 'tag-red' : 'tag-green'}">
+          ${(p.alergiasFlag ?? p.alergias_flag) ? 'Alergias: Sim' : 'Alergias: Não'}
+        </span>
+
+        <span id="${prefix}badge_doencas" class="tag ${(p.doencasFlag ?? p.doencas_flag) ? 'tag-red' : 'tag-green'}">
+          ${(p.doencasFlag ?? p.doencas_flag) ? 'Doenças: Sim' : 'Doenças: Não'}
+        </span>
+
+        <span id="${prefix}badge_cuidados" class="tag ${(p.cuidadosFlag ?? p.cuidados_flag) ? 'tag-red' : 'tag-green'}">
+          ${(p.cuidadosFlag ?? p.cuidados_flag) ? 'Cuidados: Sim' : 'Cuidados: Não'}
+        </span>
+      </div>
+
+<div class="row">
+  <div class="col">
+    ${preCadInputEdit('Nome', prefix + 'nome', p.nome || '')}
+  </div>
+  <div class="col">
+    ${preCadInputEdit('Espécie', prefix + 'especie', p.especie || '')}
+  </div>
+</div>
+
+<div class="row">
+  <div class="col">
+    ${preCadInputEdit('Raça', prefix + 'raca', p.raca || '')}
+  </div>
+  <div class="col">
+    ${preCadInputEdit('Sexo', prefix + 'sexo', p.sexo || '')}
+  </div>
+</div>
+
+<div class="row">
+  <div class="col">
+    ${preCadInputEdit('Nascimento', prefix + 'nascimento', p.nascimento || '', 'date')}
+  </div>
+  <div class="col">
+    ${preCadInputEdit('Peso', prefix + 'peso', p.peso || '', 'number', 'step="0.1" min="0"')}
+  </div>
+  <div class="col">
+    ${preCadSelectYesNo('Castrado', prefix + 'castrado', !!p.castrado)}
+  </div>
+</div>
+
+<div class="row">
+  <div class="col">
+    ${preCadSelectYesNo('Alergias', prefix + 'alergias_flag', !!(p.alergiasFlag ?? p.alergias_flag))}
+  </div>
+  <div class="col">
+    ${preCadSelectYesNo('Doenças', prefix + 'doencas_flag', !!(p.doencasFlag ?? p.doencas_flag))}
+  </div>
+  <div class="col">
+    ${preCadSelectYesNo('Cuidados especiais', prefix + 'cuidados_flag', !!(p.cuidadosFlag ?? p.cuidados_flag))}
+  </div>
+</div>
+
+<div class="row" id="${prefix}wrap_alergias_texto">
+  <div class="col">
+    ${preCadTextareaEdit('Texto alergias', prefix + 'alergias_texto', p.alergiasTexto ?? p.alergias_texto ?? '', 2)}
+  </div>
+</div>
+
+<div class="row" id="${prefix}wrap_doencas_texto">
+  <div class="col">
+    ${preCadTextareaEdit('Texto doenças', prefix + 'doencas_texto', p.doencasTexto ?? p.doencas_texto ?? '', 2)}
+  </div>
+</div>
+
+<div class="row" id="${prefix}wrap_cuidados_texto">
+  <div class="col">
+    ${preCadTextareaEdit('Texto cuidados', prefix + 'cuidados_texto', p.cuidadosTexto ?? p.cuidados_texto ?? '', 2)}
+  </div>
+</div>
+
+<div class="row">
+  <div class="col">
+    ${preCadInputEdit('Tipo de alimentação', prefix + 'alimentacao_tipo', p.alimentacaoTipo ?? p.alimentacao_tipo ?? '')}
+  </div>
+</div>
+
+<div class="row" id="${prefix}wrap_alimentacao_texto">
+  <div class="col">
+    ${preCadTextareaEdit('Detalhes da alimentação', prefix + 'alimentacao_texto', p.alimentacaoTexto ?? p.alimentacao_texto ?? '', 2)}
+  </div>
+</div>
+
+      <div style="
+        margin-top:10px;
+        padding:12px;
+        border:1px solid #d4bbff;
+        border-radius:12px;
+        background:#faf7ff;
+      ">
+        <div style="
+          font-weight:900;
+          font-size:13px;
+          margin-bottom:10px;
+          color:#6b21a8;
+        ">
+          Vacinas e proteção
+        </div>
+
+        <div style="
+          border:1px solid #e7d8ff;
+          border-radius:12px;
+          background:#ffffff;
+          padding:10px;
+          margin-bottom:10px;
+        ">
+          <div style="
+            font-weight:800;
+            font-size:12px;
+            margin-bottom:8px;
+            color:#7c3aed;
+          ">
+            Vacina viral
+          </div>
+
+          <div class="row">
+            <div class="col">
+              ${preCadSelectYesNo('Vacina viral em dia', prefix + 'vacina_viral', !!(p.vacinaViral ?? p.vacina_viral))}
+            </div>
+            <div class="col">
+              ${preCadInputEdit('Tipo da vacina viral (V8 ou V10)', prefix + 'vacina_viral_tipo', p.vacinaViralTipo ?? p.vacina_viral_tipo ?? '')}
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col">
+              ${preCadInputEdit('Mês da vacina viral', prefix + 'vacina_viral_mes', p.vacinaViralMes ?? p.vacina_viral_mes ?? '', 'number', 'min="1" max="12"')}
+            </div>
+            <div class="col">
+              ${preCadInputEdit('Ano da vacina viral', prefix + 'vacina_viral_ano', p.vacinaViralAno ?? p.vacina_viral_ano ?? '', 'number', 'min="2000" max="2100"')}
+            </div>
+          </div>
+        </div>
+
+        <div style="
+          border:1px solid #e7d8ff;
+          border-radius:12px;
+          background:#ffffff;
+          padding:10px;
+          margin-bottom:10px;
+        ">
+          <div style="
+            font-weight:800;
+            font-size:12px;
+            margin-bottom:8px;
+            color:#7c3aed;
+          ">
+            Antirrábica
+          </div>
+
+          <div class="row">
+            <div class="col">
+              ${preCadSelectYesNo('Antirrábica em dia', prefix + 'vacina_antirrabica', !!(p.vacinaAntirrabica ?? p.vacina_antirrabica))}
+            </div>
+            <div class="col">
+              ${preCadInputEdit('Mês da antirrábica', prefix + 'vacina_antirrabica_mes', p.vacinaAntirrabicaMes ?? p.vacina_antirrabica_mes ?? '', 'number', 'min="1" max="12"')}
+            </div>
+            <div class="col">
+              ${preCadInputEdit('Ano da antirrábica', prefix + 'vacina_antirrabica_ano', p.vacinaAntirrabicaAno ?? p.vacina_antirrabica_ano ?? '', 'number', 'min="2000" max="2100"')}
+            </div>
+          </div>
+        </div>
+
+        <div style="
+          border:1px solid #e7d8ff;
+          border-radius:12px;
+          background:#ffffff;
+          padding:10px;
+        ">
+          <div style="
+            font-weight:800;
+            font-size:12px;
+            margin-bottom:8px;
+            color:#7c3aed;
+          ">
+            Antipulga / coleira
+          </div>
+
+          <div class="row">
+            <div class="col">
+              ${preCadSelectYesNo('Antipulga em dia', prefix + 'antipulga', !!p.antipulga)}
+            </div>
+            <div class="col">
+              ${preCadInputEdit('Tipo do antipulga', prefix + 'antipulga_tipo', p.antipulgaTipo ?? p.antipulga_tipo ?? '')}
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col">
+              ${preCadInputEdit('Mês do antipulga', prefix + 'antipulga_mes', p.antipulgaMes ?? p.antipulga_mes ?? '', 'number', 'min="1" max="12"')}
+            </div>
+            <div class="col">
+              ${preCadInputEdit('Ano do antipulga', prefix + 'antipulga_ano', p.antipulgaAno ?? p.antipulga_ano ?? '', 'number', 'min="2000" max="2100"')}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function preCadSyncPetConditionalFields(pid){
+  const prefix = `prepet_${Number(pid)}_`;
+
+  const getEl = (suffix) => document.getElementById(prefix + suffix);
+  const getWrap = (suffix) => document.getElementById(prefix + 'wrap_' + suffix);
+
+  const alergiasSel = getEl('alergias_flag');
+  const doencasSel = getEl('doencas_flag');
+  const cuidadosSel = getEl('cuidados_flag');
+  const alimentacaoTipoEl = getEl('alimentacao_tipo');
+
+  const alergiasTxt = getEl('alergias_texto');
+  const doencasTxt = getEl('doencas_texto');
+  const cuidadosTxt = getEl('cuidados_texto');
+  const alimentacaoTxt = getEl('alimentacao_texto');
+    
+	const badgeAlergias = getEl('badge_alergias');
+  const badgeDoencas = getEl('badge_doencas');
+  const badgeCuidados = getEl('badge_cuidados');
+
+  const wrapAlergias = getWrap('alergias_texto');
+  const wrapDoencas = getWrap('doencas_texto');
+  const wrapCuidados = getWrap('cuidados_texto');
+  const wrapAlimentacao = getWrap('alimentacao_texto');
+
+  const isSim = (el) => el && String(el.value) === 'Sim';
+
+  const tipoAlimentacao = (alimentacaoTipoEl?.value || '')
+    .toString()
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  const mostrarAlergias = isSim(alergiasSel);
+  const mostrarDoencas = isSim(doencasSel);
+  const mostrarCuidados = isSim(cuidadosSel);
+
+  // esconde detalhes quando for "ração" ou "racao"
+  const mostrarAlimentacao =
+    !!tipoAlimentacao &&
+    tipoAlimentacao !== 'racao' &&
+    tipoAlimentacao !== 'ração';
+
+  if (wrapAlergias) wrapAlergias.style.display = mostrarAlergias ? '' : 'none';
+  if (wrapDoencas) wrapDoencas.style.display = mostrarDoencas ? '' : 'none';
+  if (wrapCuidados) wrapCuidados.style.display = mostrarCuidados ? '' : 'none';
+  if (wrapAlimentacao) wrapAlimentacao.style.display = mostrarAlimentacao ? '' : 'none';
+
+  if (badgeAlergias) {
+    badgeAlergias.className = 'tag ' + (mostrarAlergias ? 'tag-red' : 'tag-green');
+    badgeAlergias.textContent = mostrarAlergias ? 'Alergias: Sim' : 'Alergias: Não';
+  }
+
+  if (badgeDoencas) {
+    badgeDoencas.className = 'tag ' + (mostrarDoencas ? 'tag-red' : 'tag-green');
+    badgeDoencas.textContent = mostrarDoencas ? 'Doenças: Sim' : 'Doenças: Não';
+  }
+
+  if (badgeCuidados) {
+    badgeCuidados.className = 'tag ' + (mostrarCuidados ? 'tag-red' : 'tag-green');
+    badgeCuidados.textContent = mostrarCuidados ? 'Cuidados: Sim' : 'Cuidados: Não';
+  }
+
+  // limpa os campos escondidos para não salvar texto antigo sem querer
+  if (!mostrarAlergias && alergiasTxt) alergiasTxt.value = '';
+  if (!mostrarDoencas && doencasTxt) doencasTxt.value = '';
+  if (!mostrarCuidados && cuidadosTxt) cuidadosTxt.value = '';
+  if (!mostrarAlimentacao && alimentacaoTxt) alimentacaoTxt.value = '';
+}
+
+async function savePreCadastroDetails(id){
+  if (!id) return;
+
+  let pre = null;
+  let pets = [];
+
+  try{
+    pre = await DB.get('pre_cadastros', id);
+    pets = await DB.list('pre_cadastro_pets');
+  }catch(e){
+    console.error('Erro ao buscar dados para salvar pré-cadastro:', e);
+    toast('Erro ao preparar o salvamento do pré-cadastro.', false);
+    return;
+  }
+
+  if (!pre) {
+    toast('Pré-cadastro não encontrado para salvar.', false);
+    return;
+  }
+
+  const getVal = (id) => {
+    const el = document.getElementById(id);
+    return el ? el.value.trim() : '';
+  };
+
+  const getBool = (id) => {
+    const el = document.getElementById(id);
+    if (!el) return false;
+    return String(el.value) === 'Sim';
+  };
+
+  const nome = getVal('pre_nome');
+  const cpf = getVal('pre_cpf');
+  const telefone = getVal('pre_tel');
+  const email = getVal('pre_email');
+  const cep = getVal('pre_cep');
+  const cidade = getVal('pre_cidade');
+  const endereco = getVal('pre_endereco');
+  const contatoVet = getVal('pre_contato_vet');
+  const observacao = getVal('pre_observacao');
+  const reviewNotes = getVal('pre_review_notes');
+
+  if (!nome) {
+    toast('O nome do tutor não pode ficar vazio.', false);
+    const el = document.getElementById('pre_nome');
+    if (el) el.focus();
+    return;
+  }
+
+  const cpfNum = (cpf || '').replace(/\D/g, '');
+  if (!cpfNum) {
+    toast('O CPF do tutor não pode ficar vazio.', false);
+    const el = document.getElementById('pre_cpf');
+    if (el) el.focus();
+    return;
+  }
+
+  if (!isValidCPF(cpfNum)) {
+    toast('CPF inválido.', false);
+    const el = document.getElementById('pre_cpf');
+    if (el) el.focus();
+    return;
+  }
+
+  pre.nome = nome;
+  pre.cpf = formatCPF(cpfNum);
+  pre.telefone = telefone;
+  pre.email = email;
+  pre.cep = cep;
+  pre.cidade = cidade;
+  pre.endereco = endereco;
+  pre.contato_vet = contatoVet;
+  pre.observacao = observacao;
+  pre.review_notes = reviewNotes;
+
+  try{
+    await DB.put('pre_cadastros', pre);
+
+    const petsDoPre = (pets || [])
+      .filter(p => Number(p.preCadastroId ?? p.pre_cadastro_id) === Number(id))
+      .sort((a,b) => Number(a.id || 0) - Number(b.id || 0));
+
+    for (const p of petsDoPre) {
+      const pid = Number(p.id || 0);
+      const prefix = `prepet_${pid}_`;
+
+      const nomePet = getVal(prefix + 'nome');
+      if (!nomePet) {
+        toast(`O nome do pet ID ${pid} não pode ficar vazio.`, false);
+        const el = document.getElementById(prefix + 'nome');
+        if (el) el.focus();
+        return;
+      }
+
+      p.nome = nomePet;
+      p.especie = getVal(prefix + 'especie');
+      p.raca = getVal(prefix + 'raca');
+      p.sexo = getVal(prefix + 'sexo');
+      p.nascimento = getVal(prefix + 'nascimento') || null;
+
+      const pesoTxt = getVal(prefix + 'peso');
+      p.peso = pesoTxt ? Number(pesoTxt) : null;
+
+      p.castrado = getBool(prefix + 'castrado');
+
+      p.alergias_flag = getBool(prefix + 'alergias_flag');
+      p.alergias_texto = getVal(prefix + 'alergias_texto');
+
+      p.doencas_flag = getBool(prefix + 'doencas_flag');
+      p.doencas_texto = getVal(prefix + 'doencas_texto');
+
+      p.cuidados_flag = getBool(prefix + 'cuidados_flag');
+      p.cuidados_texto = getVal(prefix + 'cuidados_texto');
+
+      p.alimentacao_tipo = getVal(prefix + 'alimentacao_tipo');
+      p.alimentacao_texto = getVal(prefix + 'alimentacao_texto');
+	  
+	        p.vacina_viral = getBool(prefix + 'vacina_viral');
+      p.vacina_viral_tipo = getVal(prefix + 'vacina_viral_tipo');
+      p.vacina_viral_mes = getVal(prefix + 'vacina_viral_mes') || null;
+      p.vacina_viral_ano = getVal(prefix + 'vacina_viral_ano') || null;
+
+      p.vacina_antirrabica = getBool(prefix + 'vacina_antirrabica');
+      p.vacina_antirrabica_mes = getVal(prefix + 'vacina_antirrabica_mes') || null;
+      p.vacina_antirrabica_ano = getVal(prefix + 'vacina_antirrabica_ano') || null;
+
+      p.antipulga = getBool(prefix + 'antipulga');
+      p.antipulga_tipo = getVal(prefix + 'antipulga_tipo');
+      p.antipulga_mes = getVal(prefix + 'antipulga_mes') || null;
+      p.antipulga_ano = getVal(prefix + 'antipulga_ano') || null;
+
+      await DB.put('pre_cadastro_pets', p);
+    }
+
+    await DB.add('logs', {
+      at: new Date().toISOString(),
+      action: 'update',
+      entity: 'pre_cadastro',
+      entityId: Number(id),
+      note: `Pré-cadastro revisado manualmente`
+    });
+
+    toast('Pré-cadastro atualizado com sucesso.');
+    await loadPreCadastros(true);
+    await openPreCadastroDetails(id);
+  }catch(e){
+    console.error('Erro ao salvar pré-cadastro:', e);
+    const msg = e?.message || e?.error_description || 'Erro ao salvar as alterações do pré-cadastro.';
+    toast(msg, false);
+  }
+}
+
+async function preCadMarkStatus(id, status){
+  if (!id) return false;
+
+  let pre = null;
+  try{
+    pre = await DB.get('pre_cadastros', id);
+  }catch(e){
+    console.error('Erro ao carregar pré-cadastro para mudar status:', e);
+    toast('Erro ao carregar o pré-cadastro.', false);
+    return false;
+  }
+
+  if (!pre) {
+    toast('Pré-cadastro não encontrado.', false);
+    return false;
+  }
+
+  try{
+    pre.status = status;
+    pre.reviewed_at = new Date().toISOString();
+
+    await DB.put('pre_cadastros', pre);
+
+    await DB.add('logs', {
+      at: new Date().toISOString(),
+      action: 'update',
+      entity: 'pre_cadastro',
+      entityId: Number(id),
+      note: `Status alterado para ${status}`
+    });
+
+    return true;
+  }catch(e){
+    console.error('Erro ao alterar status do pré-cadastro:', e);
+    toast(e?.message || 'Erro ao alterar o status do pré-cadastro.', false);
+    return false;
+  }
+}
+
+async function rejectPreCadastro(id){
+const ok = await uiConfirm(
+  'Deseja realmente REJEITAR este pré-cadastro?\n\nEle ficará salvo no histórico com status "rejeitado".',
+  'Rejeitar pré-cadastro',
+  { okText: 'Rejeitar', cancelText: 'Cancelar' }
+);
+  if (!ok) return;
+
+  const done = await preCadMarkStatus(id, 'rejeitado');
+  if (!done) return;
+
+  toast('Pré-cadastro rejeitado com sucesso.');
+  const modal = document.getElementById('precad_modal');
+  if (modal) modal.remove();
+  await loadPreCadastros(true);
+}
+
+async function deletePreCadastro(id){
+const ok = await uiConfirm(
+  'Deseja realmente EXCLUIR este pré-cadastro?\n\nEssa ação apagará também os pets vinculados e não poderá ser desfeita.',
+  'Excluir pré-cadastro',
+  { okText: 'Excluir', cancelText: 'Cancelar' }
+);
+  if (!ok) return;
+
+  try{
+    const pets = await DB.list('pre_cadastro_pets');
+    const petsDoPre = (pets || []).filter(p => Number(p.preCadastroId ?? p.pre_cadastro_id) === Number(id));
+
+    for (const p of petsDoPre) {
+      await DB.delete('pre_cadastro_pets', p.id);
+    }
+
+    await DB.delete('pre_cadastros', id);
+
+    await DB.add('logs', {
+      at: new Date().toISOString(),
+      action: 'delete',
+      entity: 'pre_cadastro',
+      entityId: Number(id),
+      note: `Pré-cadastro excluído manualmente`
+    });
+
+    toast('Pré-cadastro excluído com sucesso.');
+
+    const modal = document.getElementById('precad_modal');
+    if (modal) modal.remove();
+
+    await loadPreCadastros(true);
+  }catch(e){
+    console.error('Erro ao excluir pré-cadastro:', e);
+    toast(e?.message || 'Erro ao excluir o pré-cadastro.', false);
+  }
+}
+
+async function approvePreCadastro(id){
+const ok = await uiConfirm(
+  'Deseja APROVAR este pré-cadastro agora?\n\nO sistema vai criar ou atualizar o tutor e os pets no cadastro principal.',
+  'Aprovar pré-cadastro',
+  { okText: 'Aprovar', cancelText: 'Cancelar' }
+);
+  if (!ok) return;
+
+  let pre = null;
+  let pets = [];
+
+  try{
+    pre = await DB.get('pre_cadastros', id);
+    pets = await DB.list('pre_cadastro_pets');
+  }catch(e){
+    console.error('Erro ao carregar dados para aprovação:', e);
+    toast('Erro ao carregar os dados para aprovação.', false);
+    return;
+  }
+
+  if (!pre) {
+    toast('Pré-cadastro não encontrado.', false);
+    return;
+  }
+
+  const petsDoPre = (pets || [])
+    .filter(p => Number(p.preCadastroId ?? p.pre_cadastro_id) === Number(id))
+    .sort((a,b) => Number(a.id || 0) - Number(b.id || 0));
+
+  if (!pre.nome || !pre.cpf) {
+    toast('O pré-cadastro precisa ter pelo menos Nome e CPF para ser aprovado.', false);
+    return;
+  }
+
+  try{
+    const tutorData = {
+      nome: (pre.nome || '').trim(),
+      telefone: (pre.telefone || '').trim(),
+      email: (pre.email || '').trim(),
+      documento: (pre.cpf || '').trim(),
+      cpf: (pre.cpf || '').trim(),
+      cep: (pre.cep || '').trim(),
+      cidade: (pre.cidade || '').trim(),
+      endereco: (pre.endereco || '').trim(),
+      contatoVet: (pre.contato_vet || pre.contatoVet || '').trim(),
+      observacao: (pre.observacao || '').trim(),
+    };
+
+    let tutorId = null;
+    const existingTutor = await findExistingTutor(tutorData);
+
+    if (existingTutor){
+      const updatedTutor = { ...existingTutor };
+
+      const tutorFields = ['nome','telefone','email','documento','cpf','cep','cidade','endereco','contatoVet','observacao'];
+      for (const f of tutorFields){
+        const val = (tutorData[f] ?? '').toString().trim();
+        if (val) updatedTutor[f] = tutorData[f];
+      }
+
+      await DB.put('clientes', updatedTutor);
+
+      await DB.add('logs', {
+        at: new Date().toISOString(),
+        action: 'update',
+        entity: 'cliente',
+        entityId: Number(updatedTutor.id),
+        note: `Atualizado via aprovação de pré-cadastro #${id}`
+      });
+
+      tutorId = Number(updatedTutor.id);
+    } else {
+      tutorId = await DB.add('clientes', tutorData);
+
+      await DB.add('logs', {
+        at: new Date().toISOString(),
+        action: 'create',
+        entity: 'cliente',
+        entityId: Number(tutorId),
+        note: `Criado via aprovação de pré-cadastro #${id}`
+      });
+    }
+
+    for (const p of petsDoPre){
+      const petData = {
+        tutorId: Number(tutorId),
+        nome: (p.nome || '').trim(),
+        especie: (p.especie || '').trim(),
+        raca: (p.raca || '').trim(),
+        sexo: (p.sexo || '').trim(),
+        nascimento: p.nascimento || '',
+        castrado: !!p.castrado,
+
+        doencasFlag: !!(p.doencas_flag ?? p.doencasFlag),
+        doencasTexto: (p.doencas_texto ?? p.doencasTexto ?? '').trim(),
+
+        alergiasFlag: !!(p.alergias_flag ?? p.alergiasFlag),
+        alergiasTexto: (p.alergias_texto ?? p.alergiasTexto ?? '').trim(),
+
+        cuidadosFlag: !!(p.cuidados_flag ?? p.cuidadosFlag),
+        cuidadosTexto: (p.cuidados_texto ?? p.cuidadosTexto ?? '').trim(),
+
+        vacinaViral: !!(p.vacina_viral ?? p.vacinaViral),
+        vacinaViralTipo: (p.vacina_viral_tipo ?? p.vacinaViralTipo ?? '').trim(),
+        vacinaViralMes: (p.vacina_viral_mes ?? p.vacinaViralMes ?? '') || null,
+        vacinaViralAno: (p.vacina_viral_ano ?? p.vacinaViralAno ?? '') || null,
+
+        vacinaAntirrabica: !!(p.vacina_antirrabica ?? p.vacinaAntirrabica),
+        vacinaAntirrabicaMes: (p.vacina_antirrabica_mes ?? p.vacinaAntirrabicaMes ?? '') || null,
+        vacinaAntirrabicaAno: (p.vacina_antirrabica_ano ?? p.vacinaAntirrabicaAno ?? '') || null,
+
+        antipulga: !!p.antipulga,
+        antipulgaTipo: (p.antipulga_tipo ?? p.antipulgaTipo ?? '').trim(),
+        antipulgaMes: (p.antipulga_mes ?? p.antipulgaMes ?? '') || null,
+        antipulgaAno: (p.antipulga_ano ?? p.antipulgaAno ?? '') || null,
+      };
+
+      if (!petData.nome) continue;
+
+      const existingPet = await findExistingPetForTutor(tutorId, petData);
+
+      if (existingPet){
+        const updatedPet = { ...existingPet };
+
+        const petFields = [
+          'nome','especie','raca','sexo','nascimento',
+          'castrado',
+          'doencasFlag','doencasTexto',
+          'alergiasFlag','alergiasTexto',
+          'cuidadosFlag','cuidadosTexto',
+          'vacinaViral','vacinaViralTipo','vacinaViralMes','vacinaViralAno',
+          'vacinaAntirrabica','vacinaAntirrabicaMes','vacinaAntirrabicaAno',
+          'antipulga','antipulgaTipo','antipulgaMes','antipulgaAno'
+        ];
+
+        for (const f of petFields){
+          const val = petData[f];
+
+          if (typeof val === 'boolean') {
+            updatedPet[f] = val;
+          } else if (val !== null && val !== undefined && String(val).trim() !== '') {
+            updatedPet[f] = val;
+          }
+        }
+
+        await DB.put('pets', updatedPet);
+
+        await DB.add('logs', {
+          at: new Date().toISOString(),
+          action: 'update',
+          entity: 'pet',
+          entityId: Number(updatedPet.id),
+          note: `Atualizado via aprovação de pré-cadastro #${id}: ${updatedPet.nome || ''}`
+        });
+      } else {
+        const newPetId = await DB.add('pets', petData);
+
+        await DB.add('logs', {
+          at: new Date().toISOString(),
+          action: 'create',
+          entity: 'pet',
+          entityId: Number(newPetId),
+          note: `Criado via aprovação de pré-cadastro #${id}: ${petData.nome || ''}`
+        });
+      }
+    }
+
+    const updatedPre = { ...pre };
+    updatedPre.status = 'aprovado';
+    updatedPre.reviewed_at = new Date().toISOString();
+
+    const reviewAtual = (updatedPre.review_notes || '').trim();
+    const complemento = `Aprovado e integrado ao cadastro principal em ${new Date().toLocaleString('pt-BR')}`;
+    updatedPre.review_notes = reviewAtual ? `${reviewAtual}\n${complemento}` : complemento;
+
+    await DB.put('pre_cadastros', updatedPre);
+
+    await DB.add('logs', {
+      at: new Date().toISOString(),
+      action: 'approve',
+      entity: 'pre_cadastro',
+      entityId: Number(id),
+      note: `Pré-cadastro aprovado`
+    });
+
+    toast('Pré-cadastro aprovado com sucesso.');
+
+    const modal = document.getElementById('precad_modal');
+    if (modal) modal.remove();
+
+    await loadPreCadastros(true);
+  }catch(e){
+    console.error('Erro ao aprovar pré-cadastro:', e);
+    toast(e?.message || 'Erro ao aprovar o pré-cadastro.', false);
+  }
+}
+
+async function openPreCadastroDetails(id){
+  if (!id) return;
+
+  let pre = null;
+  let pets = [];
+
+  try{
+    pre = await DB.get('pre_cadastros', id);
+    pets = await DB.list('pre_cadastro_pets');
+  }catch(e){
+    console.error('Erro ao abrir detalhes do pré-cadastro:', e);
+    toast('Erro ao abrir os detalhes do pré-cadastro.', false);
+    return;
+  }
+
+  if (!pre) {
+    toast('Pré-cadastro não encontrado.', false);
+    return;
+  }
+
+  const petsDoPre = (pets || [])
+    .filter(p => Number(p.preCadastroId ?? p.pre_cadastro_id) === Number(id))
+    .sort((a,b) => Number(a.id || 0) - Number(b.id || 0));
+
+  const old = document.getElementById('precad_modal');
+  if (old) old.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'precad_modal';
+  overlay.style.cssText = `
+    position:fixed; inset:0; z-index:99999;
+    display:flex; align-items:center; justify-content:center;
+    padding:16px;
+    background:rgba(0,0,0,.55);
+  `;
+
+  const box = document.createElement('div');
+  box.style.cssText = `
+    width:min(1100px, 100%);
+    max-height:min(88vh, 900px);
+    overflow:auto;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid #d4bbff;
+    border-radius: 14px;
+    box-shadow: 0 18px 40px rgba(0,0,0,.25);
+    padding: 14px;
+  `;
+
+  box.innerHTML = `
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; flex-wrap:wrap;">
+      <div>
+        <div style="font-weight:900; font-size:18px;">Pré-cadastro #${uiEscapeHtml(String(pre.id || id))}</div>
+        <div class="muted-sm" style="margin-top:4px;">
+          Recebido em ${uiEscapeHtml(preCadFmtDate(pre.createdAt || pre.created_at) || '—')}
+        </div>
+      </div>
+
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        ${preCadStatusTag(pre.status)}
+        <button id="pre_close_x" class="btn btn-ghost" style="padding:6px 10px;">✕</button>
+      </div>
+    </div>
+
+<div class="panel" style="margin-bottom:12px;">
+  <div style="font-weight:900; font-size:15px; margin-bottom:10px;">Dados do tutor</div>
+
+  <div class="row">
+    <div class="col-2">
+      ${preCadInputEdit('Nome', 'pre_nome', pre.nome || '')}
+    </div>
+    <div class="col">
+      ${preCadInputEdit('CPF', 'pre_cpf', pre.cpf || '')}
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col">
+      ${preCadInputEdit('Telefone', 'pre_tel', pre.telefone || '')}
+    </div>
+    <div class="col">
+      ${preCadInputEdit('E-mail', 'pre_email', pre.email || '', 'email')}
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col">
+      ${preCadInputEdit('CEP', 'pre_cep', pre.cep || '')}
+    </div>
+    <div class="col">
+      ${preCadInputEdit('Cidade', 'pre_cidade', pre.cidade || '')}
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-2">
+      ${preCadInputEdit('Endereço', 'pre_endereco', pre.endereco || '')}
+    </div>
+    <div class="col">
+      ${preCadInputEdit('Contato veterinário', 'pre_contato_vet', pre.contatoVet ?? pre.contato_vet ?? '')}
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col">
+      ${preCadInputEdit('Status', 'pre_status_view', pre.status || '', 'text', 'readonly')}
+    </div>
+    <div class="col">
+      ${preCadInputEdit('Revisado em', 'pre_reviewed_view', preCadFmtDate(pre.reviewedAt || pre.reviewed_at) || '', 'text', 'readonly')}
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col">
+      ${preCadTextareaEdit('Observação do tutor', 'pre_observacao', pre.observacao || '', 3)}
+    </div>
+    <div class="col">
+      ${preCadTextareaEdit('Notas internas', 'pre_review_notes', pre.reviewNotes ?? pre.review_notes ?? '', 3)}
+    </div>
+  </div>
+</div>
+
+    <div class="panel">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
+        <div style="font-weight:900; font-size:15px;">
+          Pets vinculados (${petsDoPre.length})
+        </div>
+      </div>
+
+      ${
+        petsDoPre.length
+          ? petsDoPre.map((p, idx) => preCadPetEditorHtml(p, idx)).join('')
+          : `<div class="muted-sm">Nenhum pet vinculado a este pré-cadastro.</div>`
+      }
+    </div>
+
+    <div style="display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-top:12px;">
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button id="pre_approve" class="btn btn-primary">Aprovar</button>
+        <button id="pre_reject" class="btn btn-outline">Rejeitar</button>
+        <button id="pre_delete" class="btn btn-danger">Excluir</button>
+      </div>
+
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button id="pre_save" class="btn btn-primary">Salvar alterações</button>
+        <button id="pre_close" class="btn btn-outline">Fechar</button>
+      </div>
+    </div>
+  `;
+
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+
+  const close = () => {
+    try { overlay.remove(); } catch(e){}
+  };
+
+  const btnClose = box.querySelector('#pre_close');
+  const btnCloseX = box.querySelector('#pre_close_x');
+  const btnSave = box.querySelector('#pre_save');
+  const btnApprove = box.querySelector('#pre_approve');
+  const btnReject = box.querySelector('#pre_reject');
+  const btnDelete = box.querySelector('#pre_delete');
+  const cpfInput = box.querySelector('#pre_cpf');
+  const telInput = box.querySelector('#pre_tel');
+
+  if (cpfInput) {
+    cpfInput.addEventListener('input', (e) => {
+      e.target.value = formatCPF(e.target.value);
+    });
+  }
+
+  if (telInput) {
+    telInput.addEventListener('input', (e) => {
+      e.target.value = formatPhoneBR(e.target.value);
+    });
+  }
+  
+    for (const p of petsDoPre) {
+    const pid = Number(p.id || 0);
+    const prefix = `prepet_${pid}_`;
+
+    const alergiasSel = box.querySelector('#' + prefix + 'alergias_flag');
+    const doencasSel = box.querySelector('#' + prefix + 'doencas_flag');
+    const cuidadosSel = box.querySelector('#' + prefix + 'cuidados_flag');
+    const alimentacaoTipoEl = box.querySelector('#' + prefix + 'alimentacao_tipo');
+
+    preCadSyncPetConditionalFields(pid);
+
+    if (alergiasSel) {
+      alergiasSel.addEventListener('change', () => preCadSyncPetConditionalFields(pid));
+    }
+
+    if (doencasSel) {
+      doencasSel.addEventListener('change', () => preCadSyncPetConditionalFields(pid));
+    }
+
+    if (cuidadosSel) {
+      cuidadosSel.addEventListener('change', () => preCadSyncPetConditionalFields(pid));
+    }
+
+    if (alimentacaoTipoEl) {
+      alimentacaoTipoEl.addEventListener('input', () => preCadSyncPetConditionalFields(pid));
+      alimentacaoTipoEl.addEventListener('change', () => preCadSyncPetConditionalFields(pid));
+    }
+  }
+
+  if (btnClose) btnClose.onclick = close;
+  if (btnCloseX) btnCloseX.onclick = close;
+
+  if (btnApprove) {
+    btnApprove.onclick = async () => {
+      btnApprove.disabled = true;
+      const oldTxt = btnApprove.textContent;
+      btnApprove.textContent = 'Aprovando...';
+      try{
+        await approvePreCadastro(id);
+      } finally {
+        if (btnApprove && btnApprove.isConnected) {
+          btnApprove.disabled = false;
+          btnApprove.textContent = oldTxt;
+        }
+      }
+    };
+  }
+
+  if (btnReject) {
+    btnReject.onclick = async () => {
+      btnReject.disabled = true;
+      const oldTxt = btnReject.textContent;
+      btnReject.textContent = 'Rejeitando...';
+      try{
+        await rejectPreCadastro(id);
+      } finally {
+        if (btnReject && btnReject.isConnected) {
+          btnReject.disabled = false;
+          btnReject.textContent = oldTxt;
+        }
+      }
+    };
+  }
+
+  if (btnDelete) {
+    btnDelete.onclick = async () => {
+      btnDelete.disabled = true;
+      const oldTxt = btnDelete.textContent;
+      btnDelete.textContent = 'Excluindo...';
+      try{
+        await deletePreCadastro(id);
+      } finally {
+        if (btnDelete && btnDelete.isConnected) {
+          btnDelete.disabled = false;
+          btnDelete.textContent = oldTxt;
+        }
+      }
+    };
+  }
+
+  if (btnSave) {
+    btnSave.onclick = async () => {
+      btnSave.disabled = true;
+      const oldTxt = btnSave.textContent;
+      btnSave.textContent = 'Salvando...';
+      try{
+        await savePreCadastroDetails(id);
+      } finally {
+        if (btnSave && btnSave.isConnected) {
+          btnSave.disabled = false;
+          btnSave.textContent = oldTxt;
+        }
+      }
+    };
+  }
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) close();
+  });
+
+  window.addEventListener('keydown', function esc(e){
+    if (e.key === 'Escape') {
+      window.removeEventListener('keydown', esc);
+      close();
+    }
+  });
+}
+
 // ==== LOGS ====
 let __logsOffset = 0;
 let __logsQuery = '';
@@ -4692,17 +7224,6 @@ function renderBackup(){
     }
   };
 
-// ================================
-// MODAL DO SISTEMA (substitui alert/confirm do navegador)
-// ================================
-function uiEscapeHtml(str){
-  return (str ?? '').toString()
-    .replaceAll('&','&amp;')
-    .replaceAll('<','&lt;')
-    .replaceAll('>','&gt;')
-    .replaceAll('"','&quot;')
-    .replaceAll("'","&#039;");
-}
 
 // Alert bonito (1 botão)
 function uiAlert(message, title = 'Aviso'){
@@ -4816,6 +7337,31 @@ function uiConfirm(message, title = 'Confirmação', opts = {}){
     // foco inicial no OK (melhor UX)
     try { box.querySelector('#sys_ok')?.focus(); } catch(e) {}
   });
+}
+
+function formatDateBR(d){
+  const dd = String(d.getDate()).padStart(2,'0');
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const aa = d.getFullYear();
+  return `${dd}/${mm}/${aa}`;
+}
+
+function formatExpiryBR(expiresAt){
+  if (!expiresAt) return '(sem data)';
+
+  const exp = new Date(expiresAt);
+  const expMid = new Date(exp.getFullYear(), exp.getMonth(), exp.getDate()).getTime();
+  const now = new Date();
+  const nowMid = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+  const diffDays = Math.round((expMid - nowMid) / 86400000); // 24*60*60*1000
+  const dt = formatDateBR(exp);
+
+  if (diffDays > 1) return `em ${diffDays} dias (${dt})`;
+  if (diffDays === 1) return `amanhã (${dt})`;
+  if (diffDays === 0) return `hoje (${dt})`;
+  if (diffDays === -1) return `expirou ontem (${dt})`;
+  return `expirado há ${Math.abs(diffDays)} dias (${dt})`;
 }
 
 
@@ -4975,7 +7521,16 @@ if (!diffsTutor.length) {
 
 const petsAlreadyOkNames = [];
 
-        const petFields = ['nome','especie','raca','sexo','nascimento','castrado','doencasTexto','alergiasTexto','cuidadosTexto','doencasFlag','alergiasFlag','cuidadosFlag'];
+                const petFields = [
+          'nome','especie','raca','sexo','nascimento',
+          'castrado',
+          'doencasFlag','doencasTexto',
+          'alergiasFlag','alergiasTexto',
+          'cuidadosFlag','cuidadosTexto',
+          'vacinaViral','vacinaViralTipo','vacinaViralMes','vacinaViralAno',
+          'vacinaAntirrabica','vacinaAntirrabicaMes','vacinaAntirrabicaAno',
+          'antipulga','antipulgaTipo','antipulgaMes','antipulgaAno'
+        ];
         const importedPetIds = [];
 
         for (const p of (parsed.pets || [])){

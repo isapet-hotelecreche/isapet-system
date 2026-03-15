@@ -1,0 +1,1663 @@
+<!-- contrato.html v3.8 (patched) -->
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Pré-cadastro - Isa Pet</title>
+
+  <style>
+    :root{
+      --bg:#f4e9ff;
+      --panel:#ffffff;
+      --muted:#6b7280;
+      --text:#111827;
+      --line:#d4bbff;
+
+      --accent:#a855f7;
+      --accent-2:#c4b5fd;
+
+      --ok:#16a34a;
+      --warn:#eab308;
+      --err:#ef4444;
+
+      --radius:16px;
+    }
+
+    *{ box-sizing:border-box; }
+
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Helvetica, Arial;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .wrap{
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    .top{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .brandBox{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-width: 220px;
+    }
+
+    .logo{
+      width:44px;
+      height:44px;
+      border-radius: 12px;
+      border:1px solid var(--line);
+      background:#fff;
+      object-fit: cover;
+    }
+
+    .brand{
+      display:flex;
+      flex-direction:column;
+      line-height:1.1;
+    }
+
+    .brand .t1{
+      font-size: 16px;
+      font-weight: 900;
+      letter-spacing:.2px;
+    }
+
+    .brand .t2{
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .pill{
+      border:1px solid var(--line);
+      color: #4b5563;
+      background:#f9f5ff;
+      padding:6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .card{
+      background: var(--panel);
+      border:1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 14px;
+      margin-top: 10px;
+      box-shadow: 0 8px 18px rgba(0,0,0,.06);
+    }
+
+    h2{
+      margin:0 0 10px 0;
+      font-size: 18px;
+    }
+
+    h3{
+      margin:0 0 10px 0;
+      font-size: 16px;
+    }
+
+    .small{
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+
+    .row{
+      display:flex;
+      gap:10px;
+      flex-wrap: wrap;
+    }
+
+    .col{
+      flex: 1;
+      min-width: 220px;
+    }
+
+    .col-2{
+      flex: 2;
+      min-width: 320px;
+    }
+
+    label{
+      display:block;
+      font-size: 12px;
+      color: var(--text);
+      margin-top: 8px;
+      font-weight: 700;
+    }
+
+    input, select, textarea{
+      width:100%;
+      box-sizing: border-box;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: #ffffff;
+      color: var(--text);
+      outline: none;
+      margin-top: 6px;
+    }
+
+    input:focus, select:focus, textarea:focus{
+      border-color: var(--accent);
+      background:#faf5ff;
+    }
+
+    input::placeholder, textarea::placeholder{
+      color:#9ca3af;
+    }
+
+    textarea{
+      min-height: 90px;
+      resize: vertical;
+    }
+
+    .divider{
+      height:1px;
+      background: var(--line);
+      margin: 14px 0;
+    }
+
+    .actions{
+      display:flex;
+      gap:8px;
+      justify-content:flex-end;
+      flex-wrap:wrap;
+      margin-top: 14px;
+    }
+
+    button{
+      padding: 11px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--accent);
+      cursor: pointer;
+      font-weight: 900;
+    }
+
+    .btn-primary{
+      background: var(--accent);
+      color: #ffffff;
+    }
+
+    .btn-primary:hover{ filter: brightness(1.03); }
+
+    .btn-outline{
+      background: #fff;
+      color: var(--text);
+    }
+
+    .btn-ghost{
+      background: #f9f5ff;
+      color: var(--text);
+      border-color: var(--line);
+    }
+
+    .btn-danger{
+      background: #fff1f2;
+      color: #991b1b;
+      border-color: #fecdd3;
+    }
+
+    .chip{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:4px 10px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background:#f9f5ff;
+      font-size:12px;
+      font-weight:800;
+    }
+
+    .status{
+      display:none;
+      margin-top: 10px;
+      border-radius: 12px;
+      padding: 12px;
+      font-weight: 700;
+      line-height: 1.4;
+    }
+
+    .status.ok{
+      display:block;
+      background:#f0fdf4;
+      border:1px solid #bbf7d0;
+      color:#166534;
+    }
+
+    .status.err{
+      display:block;
+      background:#fef2f2;
+      border:1px solid #fecaca;
+      color:#991b1b;
+    }
+
+    .pet-card{
+      background:#fff;
+      border:1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+      margin-top: 12px;
+    }
+
+    .pet-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-bottom: 8px;
+    }
+
+    .pet-title{
+      font-weight:900;
+      font-size: 15px;
+    }
+
+    .check-line{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      margin-top: 12px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .check-line input[type="checkbox"]{
+      width:18px;
+      height:18px;
+      margin:0;
+      accent-color: var(--accent);
+    }
+
+    .modal-overlay{
+      position:fixed;
+      inset:0;
+      z-index:99999;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding:16px;
+      background:rgba(0,0,0,.55);
+    }
+
+    .modal-box{
+      width:min(560px, 100%);
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 18px 40px rgba(0,0,0,.25);
+      padding: 14px;
+    }
+
+    .modal-title{
+      font-weight:900;
+      font-size:16px;
+      margin-bottom:8px;
+    }
+
+    .modal-text{
+      line-height:1.45;
+      color:#374151;
+      white-space:pre-wrap;
+    }
+
+    .foot{
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 12px;
+      text-align:center;
+    }
+
+    .section-head{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+      margin-bottom:12px;
+    }
+
+    .section-title{
+      margin:0;
+      font-size:18px;
+      font-weight:900;
+      color:#2f2447;
+    }
+
+    .section-subtitle{
+      font-size:13px;
+      color:#6b6280;
+      margin-top:4px;
+      line-height:1.4;
+    }
+
+    .badge-soft{
+      padding:6px 10px;
+      border-radius:999px;
+      background:#f3ecff;
+      border:1px solid #dfcffd;
+      color:#5b3ea8;
+      font-size:12px;
+      font-weight:800;
+      white-space:nowrap;
+    }
+
+    .soft-panel{
+      border:1px solid #e7dbff;
+      border-radius:16px;
+      padding:14px;
+      background:linear-gradient(180deg, #fcfaff 0%, #f8f4ff 100%);
+    }
+
+    .pet-summary{
+      margin-top:10px;
+      padding:10px 12px;
+      border:1px solid #d9c8fb;
+      border-radius:12px;
+      background:#ffffff;
+      color:#4f3b86;
+      font-size:13px;
+      font-weight:700;
+      display:none;
+    }
+
+    .pet-grid-block{
+      border:1px solid #ece3ff;
+      border-radius:16px;
+      padding:14px;
+      background:#fff;
+      margin-top:12px;
+    }
+
+    .pet-grid-block h4{
+      margin:0 0 10px 0;
+      font-size:14px;
+      font-weight:800;
+      color:#4f3b86;
+    }
+
+    .vacina-panel{
+      margin-top:10px;
+      padding:14px;
+      border:1px solid #e4d7ff;
+      border-radius:16px;
+      background:linear-gradient(180deg, #fcfaff 0%, #f8f4ff 100%);
+    }
+
+    .vacina-panel-title{
+      font-weight:900;
+      font-size:14px;
+      margin-bottom:10px;
+      color:#4f3b86;
+    }
+
+    .vacina-card{
+      border:1px solid #dccbfd;
+      border-radius:14px;
+      padding:12px;
+      background:#fff;
+      box-shadow:0 4px 12px rgba(91,62,168,.04);
+      margin-bottom:10px;
+    }
+
+    .vacina-card:last-child{
+      margin-bottom:0;
+    }
+
+    .vacina-card-title{
+      font-weight:800;
+      font-size:13px;
+      margin-bottom:8px;
+      color:#42365f;
+    }
+
+    .tutor-shell{
+      border:1px solid #e7dbff;
+      border-radius:16px;
+      padding:14px;
+      background:linear-gradient(180deg, #fcfaff 0%, #f8f4ff 100%);
+    }
+
+    .tutor-summary{
+      margin-top:12px;
+      padding:10px 12px;
+      border:1px solid #d9c8fb;
+      border-radius:12px;
+      background:#ffffff;
+      color:#4f3b86;
+      font-size:13px;
+      font-weight:700;
+      display:none;
+    }
+
+    .tutor-grid-block{
+      border:1px solid #ece3ff;
+      border-radius:16px;
+      padding:14px;
+      background:#fff;
+      margin-top:12px;
+    }
+
+    .tutor-grid-block h4{
+      margin:0 0 10px 0;
+      font-size:14px;
+      font-weight:800;
+      color:#4f3b86;
+    }
+
+    .soft-note{
+      margin-top:8px;
+      font-size:12px;
+      color:#6b6280;
+      line-height:1.4;
+    }
+
+    .hidden{
+      display:none !important;
+    }
+
+    @media (max-width: 700px){
+      .actions button{
+        width:100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+
+    <div class="top">
+      <div class="brandBox">
+        <img class="logo" src="logo-quadrado-NOVO-HOTEL.jpg" alt="Isa Pet" />
+        <div class="brand">
+          <div class="t1">Isa Pet</div>
+          <div class="t2">Hotel & Creche</div>
+        </div>
+      </div>
+
+      <div class="pill">Pré-cadastro online</div>
+    </div>
+
+    <div class="card">
+      <h2>Cadastro inicial do tutor e do pet</h2>
+      <div class="small">
+        Preencha as informações abaixo com atenção. Após o envio, nossa equipe irá revisar os dados antes da liberação no sistema.
+      </div>
+    </div>
+
+    <div id="statusBox" class="status"></div>
+
+    <div class="card">
+      <div class="section-head">
+        <div>
+          <h3 class="section-title">Dados do tutor</h3>
+          <div class="section-subtitle">Preencha os dados do responsável pelo pet. Essas informações serão usadas para contato e identificação do cadastro.</div>
+        </div>
+
+        <div class="badge-soft">Campos com * são obrigatórios</div>
+      </div>
+
+      <div class="tutor-shell">
+        <div class="soft-note">
+          Dica: ao preencher o CEP, a cidade e parte do endereço podem ser completados automaticamente.
+        </div>
+
+        <div id="tutorSummary" class="tutor-summary"></div>
+
+        <div class="tutor-grid-block">
+          <h4>Identificação do tutor</h4>
+
+          <div class="row">
+            <div class="col-2">
+              <label for="tutor_nome">Nome completo *</label>
+              <input id="tutor_nome" placeholder="Digite o nome completo" />
+            </div>
+
+            <div class="col">
+              <label for="tutor_cpf">CPF *</label>
+              <input id="tutor_cpf" placeholder="000.000.000-00" />
+            </div>
+          </div>
+        </div>
+
+        <div class="tutor-grid-block">
+          <h4>Contato</h4>
+
+          <div class="row">
+            <div class="col">
+              <label for="tutor_tel">Telefone *</label>
+              <input id="tutor_tel" placeholder="(00) 00000-0000" />
+            </div>
+
+            <div class="col">
+              <label for="tutor_email">E-mail</label>
+              <input id="tutor_email" type="email" placeholder="email@exemplo.com" />
+            </div>
+          </div>
+
+          <label for="tutor_vet">Contato veterinário</label>
+          <input id="tutor_vet" placeholder="Nome / clínica / telefone" />
+        </div>
+
+        <div class="tutor-grid-block">
+          <h4>Endereço</h4>
+
+          <div class="row">
+            <div class="col">
+              <label for="tutor_cep">CEP *</label>
+              <input id="tutor_cep" placeholder="00000-000" />
+            </div>
+
+            <div class="col">
+              <label for="tutor_cidade">Cidade *</label>
+              <input id="tutor_cidade" placeholder="Sua cidade" />
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-2">
+              <label for="tutor_endereco">Endereço *</label>
+              <input id="tutor_endereco" placeholder="Rua, bairro..." />
+            </div>
+
+            <div class="col">
+              <label for="tutor_numero">Número *</label>
+              <input id="tutor_numero" placeholder="Ex.: 223" />
+            </div>
+          </div>
+        </div>
+
+        <div class="tutor-grid-block">
+          <h4>Observações</h4>
+
+          <label for="tutor_obs">Observações</label>
+          <textarea id="tutor_obs" placeholder="Escreva aqui caso tenha alguma observação importante"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-head">
+        <div>
+          <h3 class="section-title">Pets</h3>
+          <div class="section-subtitle">Você pode adicionar mais de um pet e preencher cada cadastro separadamente.</div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <div id="petCountBadge" class="badge-soft">Total neste cadastro: 1 pet</div>
+        </div>
+      </div>
+
+      <div id="petsContainer"></div>
+    </div>
+
+    <div class="card">
+      <div class="small">
+        Ao enviar, os dados ficarão com status de análise e poderão ser revisados pela equipe antes da aprovação final.
+      </div>
+
+      <input id="website" class="hidden" autocomplete="off" tabindex="-1" />
+
+      <div class="actions">
+        <button type="button" class="btn-ghost" id="btnLimpar">Limpar tudo</button>
+        <button type="button" class="btn-primary" id="btnEnviar">Enviar pré-cadastro</button>
+      </div>
+    </div>
+
+    <div class="foot">
+      Isa Pet Hotel & Creche
+    </div>
+  </div>
+
+  <div id="modalOverlay" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-title" id="modalTitle">Mensagem</div>
+      <div class="modal-text" id="modalText"></div>
+      <div class="actions">
+        <button type="button" class="btn-primary" id="modalOk">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const FN_BASE = "https://siksojcleumugquntrgc.supabase.co/functions/v1";
+    const PRE_CADASTRO_URL = FN_BASE + "/pre-cadastro-create";
+
+    const petsContainer = document.getElementById("petsContainer");
+    const statusBox = document.getElementById("statusBox");
+
+    function escHtml(str){
+      return (str ?? "").toString()
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&#039;");
+    }
+
+    function showStatus(msg, ok){
+      statusBox.className = "status " + (ok ? "ok" : "err");
+      statusBox.textContent = msg || "";
+      statusBox.scrollIntoView({ behavior:"smooth", block:"center" });
+    }
+
+    function clearStatus(){
+      statusBox.className = "status";
+      statusBox.textContent = "";
+    }
+
+    function openModal(title, text){
+      document.getElementById("modalTitle").textContent = title || "Mensagem";
+      document.getElementById("modalText").textContent = text || "";
+      document.getElementById("modalOverlay").style.display = "flex";
+    }
+
+    function closeModal(){
+      document.getElementById("modalOverlay").style.display = "none";
+    }
+
+    document.getElementById("modalOk").onclick = closeModal;
+    document.getElementById("modalOverlay").addEventListener("click", (e)=>{
+      if (e.target.id === "modalOverlay") closeModal();
+    });
+
+    function onlyDigits(v){
+      return (v || "").toString().replace(/\D/g, "");
+    }
+
+    function formatCPF(v){
+      v = onlyDigits(v).slice(0,11);
+      if (v.length <= 3) return v;
+      if (v.length <= 6) return v.replace(/^(\d{3})(\d+)/, "$1.$2");
+      if (v.length <= 9) return v.replace(/^(\d{3})(\d{3})(\d+)/, "$1.$2.$3");
+      return v.replace(/^(\d{3})(\d{3})(\d{3})(\d{1,2})/, "$1.$2.$3-$4");
+    }
+
+    function formatPhoneBR(v){
+      v = onlyDigits(v).slice(0,11);
+      if (v.length <= 10){
+        return v
+          .replace(/^(\d{2})(\d)/, "($1) $2")
+          .replace(/(\d{4})(\d)/, "$1-$2");
+      }
+      return v
+        .replace(/^(\d{2})(\d)/, "($1) $2")
+        .replace(/(\d{5})(\d)/, "$1-$2");
+    }
+
+    function formatCEP(v){
+      v = onlyDigits(v).slice(0,8);
+      return v.replace(/^(\d{5})(\d)/, "$1-$2");
+    }
+
+    function isValidCPF(cpf){
+      cpf = onlyDigits(cpf);
+
+      if (!cpf || cpf.length !== 11) return false;
+      if (/^(\d)\1{10}$/.test(cpf)) return false;
+
+      let soma = 0;
+      let resto = 0;
+
+      for (let i = 1; i <= 9; i++) {
+        soma += parseInt(cpf.substring(i - 1, i), 10) * (11 - i);
+      }
+
+      resto = (soma * 10) % 11;
+      if (resto === 10 || resto === 11) resto = 0;
+      if (resto !== parseInt(cpf.substring(9, 10), 10)) return false;
+
+      soma = 0;
+      for (let i = 1; i <= 10; i++) {
+        soma += parseInt(cpf.substring(i - 1, i), 10) * (12 - i);
+      }
+
+      resto = (soma * 10) % 11;
+      if (resto === 10 || resto === 11) resto = 0;
+      if (resto !== parseInt(cpf.substring(10, 11), 10)) return false;
+
+      return true;
+    }
+
+    function createMonthOptions(selected = ""){
+      let html = `<option value="">Mês</option>`;
+      for (let m = 1; m <= 12; m++){
+        html += `<option value="${m}" ${String(selected) === String(m) ? "selected" : ""}>${String(m).padStart(2,"0")}</option>`;
+      }
+      return html;
+    }
+	
+    function createYearOptions(selected = ""){
+      const current = new Date().getFullYear();
+      let html = `<option value="">Ano</option>`;
+      for (let y = current; y >= current - 10; y--){
+        html += `<option value="${y}" ${String(selected) === String(y) ? "selected" : ""}>${y}</option>`;
+      }
+      return html;
+    }
+
+    const DOG_BREEDS = [
+      "Sem raça definida (SRD)",
+      "Shih Tzu",
+      "Lhasa Apso",
+      "Yorkshire Terrier",
+      "Spitz Alemão / Lulu da Pomerânia",
+      "Maltês",
+      "Poodle",
+      "Pinscher",
+      "Chihuahua",
+      "Pug",
+      "Bulldog Francês",
+      "Bulldog Inglês",
+      "Beagle",
+      "Basset Hound",
+      "Dachshund / Salsicha",
+      "Jack Russell Terrier",
+      "Border Collie",
+      "Pastor Alemão",
+      "Golden Retriever",
+      "Labrador Retriever",
+      "Rottweiler",
+      "Doberman",
+      "Boxer",
+      "Cocker Spaniel",
+      "Schnauzer",
+      "Akita",
+      "American Bully",
+      "Pit Bull",
+      "Fila Brasileiro",
+      "Cane Corso",
+      "Husky Siberiano",
+      "Samoieda",
+      "Weimaraner",
+      "Whippet",
+      "Galgo",
+      "Outro"
+    ];
+
+    const CAT_BREEDS = [
+      "Sem raça definida (SRD)",
+      "Siamês",
+      "Persa",
+      "Maine Coon",
+      "Angorá",
+      "Ragdoll",
+      "Sphynx",
+      "Bengal",
+      "British Shorthair",
+      "Scottish Fold",
+      "Norueguês da Floresta",
+      "Azul Russo",
+      "Bombay",
+      "Birmanês",
+      "Outro"
+    ];
+
+    function buildSelectOptions(list, firstLabel = "Selecione"){
+      let html = `<option value="">${firstLabel}</option>`;
+      for (const item of list){
+        html += `<option value="${item}">${item}</option>`;
+      }
+      return html;
+    }
+
+    function refreshEspecieRaca(card){
+      const especieEl = card.querySelector('.especie-select');
+      const racaEl = card.querySelector('.raca-select');
+      const especieOutroWrap = card.querySelector('.especie-outro-wrap');
+      const especieOutroInput = card.querySelector('[data-field="especie_outro"]');
+
+      const especie = String(especieEl?.value || "");
+
+      if (!racaEl) return;
+
+      if (especie === "Cachorro"){
+        racaEl.disabled = false;
+        racaEl.innerHTML = buildSelectOptions(DOG_BREEDS, "Selecione a raça");
+        especieOutroWrap.classList.add("hidden");
+        if (especieOutroInput) especieOutroInput.value = "";
+      }
+      else if (especie === "Gato"){
+        racaEl.disabled = false;
+        racaEl.innerHTML = buildSelectOptions(CAT_BREEDS, "Selecione a raça");
+        especieOutroWrap.classList.add("hidden");
+        if (especieOutroInput) especieOutroInput.value = "";
+      }
+      else if (especie === "Outro"){
+        racaEl.disabled = true;
+        racaEl.innerHTML = `<option value="">Raça não se aplica</option>`;
+        especieOutroWrap.classList.remove("hidden");
+      }
+      else{
+        racaEl.disabled = true;
+        racaEl.innerHTML = `<option value="">Selecione a espécie primeiro</option>`;
+        especieOutroWrap.classList.add("hidden");
+        if (especieOutroInput) especieOutroInput.value = "";
+      }
+    }
+
+    function petCardTemplate(index){
+      const idx = index + 1;
+      return `
+        <div class="pet-card" data-pet-index="${index}">
+          <div class="pet-head" style="margin-bottom:12px;">
+            <div>
+              <div class="pet-title">Pet ${idx}</div>
+              <div class="small" style="margin-top:4px;">Preencha os dados de identificação, saúde e vacinação.</div>
+            </div>
+
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button type="button" class="btn-outline btnAddNextPet">+ Adicionar próximo pet</button>
+              <button type="button" class="btn-danger btnRemovePet">Remover pet</button>
+            </div>
+          </div>
+
+          <div class="pet-summary">Cadastro em preenchimento</div>
+
+          <div class="pet-grid-block">
+            <h4>Identificação do pet</h4>
+
+            <div class="row">
+              <div class="col-2">
+                <label>Nome do pet *</label>
+                <input data-field="nome" placeholder="Nome do pet" />
+              </div>
+
+              <div class="col">
+                <label>Espécie *</label>
+                <select data-field="especie" class="especie-select">
+                  <option value="">Selecione</option>
+                  <option value="Cachorro">Cachorro</option>
+                  <option value="Gato">Gato</option>
+                  <option value="Outro">Outro</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="row especie-outro-wrap hidden">
+              <div class="col">
+                <label>Espécie (quando "Outro")</label>
+                <input data-field="especie_outro" placeholder="Ex.: Coelho, Ave, Hamster..." />
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col raca-select-wrap">
+                <label>Raça</label>
+                <select data-field="raca" class="raca-select">
+                  <option value="">Selecione a espécie primeiro</option>
+                </select>
+              </div>
+
+              <div class="col">
+                <label>Sexo</label>
+                <select data-field="sexo">
+                  <option value="">Selecione</option>
+                  <option value="M">Macho</option>
+                  <option value="F">Fêmea</option>
+                </select>
+              </div>
+
+              <div class="col">
+                <label>Data de nascimento</label>
+                <input data-field="nascimento" type="date" />
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col">
+                <label>Peso (kg)</label>
+                <input data-field="peso" type="number" step="0.1" min="0" placeholder="Ex.: 7.5" />
+              </div>
+
+              <div class="col">
+                <label>Castrado?</label>
+                <select data-field="castrado">
+                  <option value="false">Não</option>
+                  <option value="true">Sim</option>
+                </select>
+              </div>
+
+              <div class="col">
+                <label>Alimentação</label>
+                <select data-field="alimentacao_tipo" class="alimentacao_tipo">
+                  <option value="">Selecione</option>
+                  <option value="ração">Ração</option>
+                  <option value="comida natural">Comida natural</option>
+                  <option value="mista">Mista</option>
+                  <option value="outra">Outra</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="alimentacao_texto_wrap hidden">
+              <label>Descreva a alimentação</label>
+              <textarea data-field="alimentacao_texto" placeholder="Descreva o que o pet come, horários, quantidades ou observações"></textarea>
+            </div>
+          </div>
+
+          <div class="pet-grid-block">
+            <h4>Saúde e cuidados</h4>
+
+            <div class="check-line">
+              <input type="checkbox" class="flag-toggle" data-flag="alergias_flag" id="alergias_${index}">
+              <label for="alergias_${index}" style="margin:0;">Possui alergias?</label>
+            </div>
+            <div class="flag-text-wrap hidden" data-wrap="alergias_flag">
+              <label>Descreva as alergias</label>
+              <textarea data-field="alergias_texto" placeholder="Informe as alergias do pet"></textarea>
+            </div>
+
+            <div class="check-line">
+              <input type="checkbox" class="flag-toggle" data-flag="doencas_flag" id="doencas_${index}">
+              <label for="doencas_${index}" style="margin:0;">Possui doenças ou condição de saúde?</label>
+            </div>
+            <div class="flag-text-wrap hidden" data-wrap="doencas_flag">
+              <label>Descreva as doenças ou condições</label>
+              <textarea data-field="doencas_texto" placeholder="Informe a condição do pet"></textarea>
+            </div>
+
+            <div class="check-line">
+              <input type="checkbox" class="flag-toggle" data-flag="cuidados_flag" id="cuidados_${index}">
+              <label for="cuidados_${index}" style="margin:0;">Precisa de cuidados especiais?</label>
+            </div>
+            <div class="flag-text-wrap hidden" data-wrap="cuidados_flag">
+              <label>Descreva os cuidados especiais</label>
+              <textarea data-field="cuidados_texto" placeholder="Ex.: medicação, rotina, restrições"></textarea>
+            </div>
+          </div>
+
+          <div class="vacina-panel">
+            <div class="vacina-panel-title">Vacinas e proteção</div>
+
+            <div class="vacina-card">
+              <div class="vacina-card-title">Vacina viral</div>
+
+              <div class="row">
+                <div class="col">
+                  <label>Vacina viral (V8 ou V10) tomou?</label>
+                  <select data-field="vacina_viral" class="vacina-toggle" data-vacina="viral">
+                    <option value="false">Não</option>
+                    <option value="true">Sim</option>
+                  </select>
+                </div>
+
+                <div class="col vacina-date-wrap hidden" data-vacina-wrap="viral">
+                  <label>Tipo / Mês / Ano da vacina viral</label>
+                  <div class="row">
+                    <div class="col">
+                      <select data-field="vacina_viral_tipo">
+                        <option value="">Tipo</option>
+                        <option value="V8">V8</option>
+                        <option value="V10">V10</option>
+                      </select>
+                    </div>
+                    <div class="col">
+                      <select data-field="vacina_viral_mes">
+                        ${createMonthOptions()}
+                      </select>
+                    </div>
+                    <div class="col">
+                      <select data-field="vacina_viral_ano">
+                        ${createYearOptions()}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="vacina-card">
+              <div class="vacina-card-title">Vacina antirrábica</div>
+
+              <div class="row">
+                <div class="col">
+                  <label>Antirrábica tomou?</label>
+                  <select data-field="vacina_antirrabica" class="vacina-toggle" data-vacina="antirrabica">
+                    <option value="false">Não</option>
+                    <option value="true">Sim</option>
+                  </select>
+                </div>
+
+                <div class="col vacina-date-wrap hidden" data-vacina-wrap="antirrabica">
+                  <label>Mês / Ano da antirrábica</label>
+                  <div class="row">
+                    <div class="col">
+                      <select data-field="vacina_antirrabica_mes">
+                        ${createMonthOptions()}
+                      </select>
+                    </div>
+                    <div class="col">
+                      <select data-field="vacina_antirrabica_ano">
+                        ${createYearOptions()}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="vacina-card">
+              <div class="vacina-card-title">Antipulga / coleira</div>
+
+              <div class="row">
+                <div class="col">
+                  <label>Antipulga / coleira em dia?</label>
+                  <select data-field="antipulga" class="vacina-toggle" data-vacina="antipulga">
+                    <option value="false">Não</option>
+                    <option value="true">Sim</option>
+                  </select>
+                </div>
+
+                <div class="col vacina-date-wrap hidden" data-vacina-wrap="antipulga">
+                  <label>Tipo / Mês / Ano do antipulga</label>
+                  <div class="row">
+                    <div class="col">
+                      <select data-field="antipulga_tipo">
+                        <option value="">Tipo</option>
+                        <option value="Comprimido">Comprimido</option>
+                        <option value="Pipeta">Pipeta</option>
+                        <option value="Spray">Spray</option>
+                        <option value="Coleira">Coleira</option>
+                        <option value="Outro">Outro</option>
+                      </select>
+                    </div>
+                    <div class="col">
+                      <select data-field="antipulga_mes">
+                        ${createMonthOptions()}
+                      </select>
+                    </div>
+                    <div class="col">
+                      <select data-field="antipulga_ano">
+                        ${createYearOptions()}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function updatePetTitles(){
+      const cards = [...petsContainer.querySelectorAll(".pet-card")];
+      const badge = document.getElementById("petCountBadge");
+
+      cards.forEach((card, i) => {
+        card.setAttribute("data-pet-index", i);
+
+        const title = card.querySelector(".pet-title");
+        if (title) title.textContent = `Pet ${i + 1}`;
+
+        const removeBtn = card.querySelector(".btnRemovePet");
+        if (removeBtn) {
+          removeBtn.style.display = cards.length > 1 ? "inline-block" : "none";
+        }
+
+        const nome = card.querySelector('[data-field="nome"]')?.value.trim() || "";
+        const especie = card.querySelector('[data-field="especie"]')?.value || "";
+        const summary = card.querySelector(".pet-summary");
+
+        if (summary) {
+          if (nome || especie) {
+            const partes = [];
+            if (nome) partes.push(`Nome: ${nome}`);
+            if (especie) partes.push(`Espécie: ${especie}`);
+            summary.style.display = "block";
+            summary.textContent = partes.join(" • ");
+          } else {
+            summary.style.display = "none";
+            summary.textContent = "";
+          }
+        }
+      });
+
+      if (badge) {
+        const total = cards.length;
+        badge.textContent = `Total neste cadastro: ${total} pet${total > 1 ? "s" : ""}`;
+      }
+    }
+
+    function bindPetCard(card){
+      card.querySelectorAll(".flag-toggle").forEach(chk => {
+        const flag = chk.getAttribute("data-flag");
+        const wrap = card.querySelector(`[data-wrap="${flag}"]`);
+
+        const refresh = () => {
+          if (chk.checked) wrap.classList.remove("hidden");
+          else wrap.classList.add("hidden");
+        };
+
+        chk.addEventListener("change", refresh);
+        refresh();
+      });
+
+      card.querySelectorAll(".vacina-toggle").forEach(sel => {
+        const vacina = sel.getAttribute("data-vacina");
+        const wrap = card.querySelector(`[data-vacina-wrap="${vacina}"]`);
+
+        const refresh = () => {
+          if (String(sel.value) === "true") wrap.classList.remove("hidden");
+          else wrap.classList.add("hidden");
+        };
+
+        sel.addEventListener("change", refresh);
+        refresh();
+      });
+
+      const alimentacaoSel = card.querySelector(".alimentacao_tipo");
+      const alimentacaoWrap = card.querySelector(".alimentacao_texto_wrap");
+
+      const refreshAlimentacao = () => {
+        const v = String(alimentacaoSel.value || "");
+        if (v === "comida natural" || v === "mista" || v === "outra") {
+          alimentacaoWrap.classList.remove("hidden");
+        } else {
+          alimentacaoWrap.classList.add("hidden");
+        }
+      };
+
+      alimentacaoSel.addEventListener("change", refreshAlimentacao);
+      refreshAlimentacao();
+
+      const especieSel = card.querySelector(".especie-select");
+      if (especieSel) {
+        especieSel.addEventListener("change", () => refreshEspecieRaca(card));
+        refreshEspecieRaca(card);
+      }
+	  
+	        const nascimentoInput = card.querySelector('[data-field="nascimento"]');
+      if (nascimentoInput) {
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, "0");
+        const dd = String(today.getDate()).padStart(2, "0");
+        nascimentoInput.max = `${yyyy}-${mm}-${dd}`;
+
+        nascimentoInput.addEventListener("change", () => {
+          if (nascimentoInput.value && isFutureDateOnly(nascimentoInput.value)) {
+            openModal("Data inválida", "A data de nascimento não pode ser maior que a data de hoje.");
+            nascimentoInput.value = "";
+          }
+        });
+      }
+
+      card.querySelectorAll('input, select, textarea').forEach(el => {
+        el.addEventListener("input", updatePetTitles);
+        el.addEventListener("change", updatePetTitles);
+      });
+
+      const addNextBtn = card.querySelector(".btnAddNextPet");
+      if (addNextBtn) {
+        addNextBtn.addEventListener("click", () => {
+          addPetCard(true);
+        });
+      }
+
+      const removeBtn = card.querySelector(".btnRemovePet");
+      removeBtn.addEventListener("click", () => {
+        card.remove();
+        updatePetTitles();
+      });
+    }
+
+    function addPetCard(scrollToNew = false){
+      const index = petsContainer.querySelectorAll(".pet-card").length;
+      const div = document.createElement("div");
+      div.innerHTML = petCardTemplate(index);
+      const card = div.firstElementChild;
+      petsContainer.appendChild(card);
+      bindPetCard(card);
+      updatePetTitles();
+
+      if (scrollToNew) {
+        setTimeout(() => {
+          card.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 80);
+      }
+    }
+
+    function updateTutorSummary(){
+      const box = document.getElementById("tutorSummary");
+      if (!box) return;
+
+      const nome = document.getElementById("tutor_nome")?.value.trim() || "";
+      const telefone = document.getElementById("tutor_tel")?.value.trim() || "";
+      const email = document.getElementById("tutor_email")?.value.trim() || "";
+      const cidade = document.getElementById("tutor_cidade")?.value.trim() || "";
+      const cpf = document.getElementById("tutor_cpf")?.value.trim() || "";
+
+      const parts = [];
+      if (nome) parts.push(`Tutor: ${nome}`);
+      if (telefone) parts.push(`Telefone: ${telefone}`);
+      if (email) parts.push(`E-mail: ${email}`);
+      if (cidade) parts.push(`Cidade: ${cidade}`);
+      if (cpf) parts.push(`CPF: ${cpf}`);
+
+      if (parts.length) {
+        box.style.display = "block";
+        box.textContent = parts.join(" • ");
+      } else {
+        box.style.display = "none";
+        box.textContent = "";
+      }
+    }
+
+    function getTutorData(){
+      const enderecoBase = document.getElementById("tutor_endereco").value.trim();
+      const numero = document.getElementById("tutor_numero").value.trim();
+
+      let enderecoFinal = enderecoBase;
+      if (enderecoBase && numero) {
+        enderecoFinal = `${enderecoBase}, ${numero}`;
+      }
+
+      return {
+        nome: document.getElementById("tutor_nome").value.trim(),
+        cpf: document.getElementById("tutor_cpf").value.trim(),
+        telefone: document.getElementById("tutor_tel").value.trim(),
+        email: document.getElementById("tutor_email").value.trim(),
+        cep: document.getElementById("tutor_cep").value.trim(),
+        cidade: document.getElementById("tutor_cidade").value.trim(),
+        endereco: enderecoFinal,
+        contatoVet: document.getElementById("tutor_vet").value.trim(),
+        observacao: document.getElementById("tutor_obs").value.trim()
+      };
+    }
+
+    function isFutureDateOnly(dateStr){
+      if (!dateStr) return false;
+
+      const today = new Date();
+      const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+      const testDate = new Date(dateStr + "T00:00:00");
+      if (Number.isNaN(testDate.getTime())) return false;
+
+      return testDate > todayOnly;
+    }
+
+    function isFutureMonthYear(month, year){
+      if (!month || !year) return false;
+
+      const m = Number(month);
+      const y = Number(year);
+
+      if (!m || !y) return false;
+
+      const today = new Date();
+      const currentMonth = today.getMonth() + 1;
+      const currentYear = today.getFullYear();
+
+      if (y > currentYear) return true;
+      if (y === currentYear && m > currentMonth) return true;
+
+      return false;
+    }
+
+    function getPetData(card){
+      const get = (field) => {
+        const el = card.querySelector(`[data-field="${field}"]`);
+        return el ? el.value : "";
+      };
+
+      const getBool = (field) => String(get(field)) === "true";
+      const getChk = (flag) => {
+        const el = card.querySelector(`[data-flag="${flag}"]`);
+        return !!(el && el.checked);
+      };
+
+      const especieBase = get("especie").trim();
+      const especieOutro = get("especie_outro").trim();
+
+      return {
+        nome: get("nome").trim(),
+        especie: especieBase === "Outro" ? especieOutro : especieBase,
+        raca: especieBase === "Outro" ? "" : get("raca").trim(),
+        sexo: get("sexo").trim(),
+        nascimento: get("nascimento").trim(),
+        peso: get("peso").trim(),
+        castrado: getBool("castrado"),
+
+        alergias_flag: getChk("alergias_flag"),
+        alergias_texto: get("alergias_texto").trim(),
+
+        doencas_flag: getChk("doencas_flag"),
+        doencas_texto: get("doencas_texto").trim(),
+
+        cuidados_flag: getChk("cuidados_flag"),
+        cuidados_texto: get("cuidados_texto").trim(),
+
+        alimentacao_tipo: get("alimentacao_tipo").trim(),
+        alimentacao_texto: get("alimentacao_texto").trim(),
+
+        vacina_viral: getBool("vacina_viral"),
+        vacina_viral_tipo: get("vacina_viral_tipo").trim(),
+        vacina_viral_mes: get("vacina_viral_mes") || null,
+        vacina_viral_ano: get("vacina_viral_ano") || null,
+
+        vacina_antirrabica: getBool("vacina_antirrabica"),
+        vacina_antirrabica_mes: get("vacina_antirrabica_mes") || null,
+        vacina_antirrabica_ano: get("vacina_antirrabica_ano") || null,
+
+        antipulga: getBool("antipulga"),
+        antipulga_tipo: get("antipulga_tipo").trim(),
+        antipulga_mes: get("antipulga_mes") || null,
+        antipulga_ano: get("antipulga_ano") || null,
+      };
+    }
+
+    function validateForm(){
+      clearStatus();
+
+      const tutor = getTutorData();
+      const cards = [...petsContainer.querySelectorAll(".pet-card")];
+      const pets = cards.map(getPetData);
+
+      if (!tutor.nome) {
+        showStatus("Preencha o nome completo do tutor.", false);
+        return null;
+      }
+
+      if (!tutor.cpf) {
+        showStatus("Preencha o CPF do tutor.", false);
+        return null;
+      }
+
+      if (!isValidCPF(tutor.cpf)) {
+        showStatus("O CPF informado é inválido.", false);
+        return null;
+      }
+
+      if (!tutor.telefone) {
+        showStatus("Preencha o telefone do tutor.", false);
+        return null;
+      }
+	  
+	        if (!tutor.cep) {
+        showStatus("Preencha o CEP do tutor.", false);
+        return null;
+      }
+
+      if (!tutor.cidade) {
+        showStatus("Preencha a cidade do tutor.", false);
+        return null;
+      }
+
+      if (!document.getElementById("tutor_endereco").value.trim()) {
+        showStatus("Preencha o endereço do tutor.", false);
+        return null;
+      }
+
+      if (!document.getElementById("tutor_numero").value.trim()) {
+        showStatus("Preencha o número do endereço do tutor.", false);
+        return null;
+      }
+
+      if (!pets.length) {
+        showStatus("Adicione pelo menos 1 pet.", false);
+        return null;
+      }
+
+      for (let i = 0; i < pets.length; i++){
+        const p = pets[i];
+
+        if (!p.nome) {
+          showStatus(`Preencha o nome do Pet ${i + 1}.`, false);
+          return null;
+        }
+		
+		        const card = cards[i];
+        const especieSelecionada = card.querySelector('[data-field="especie"]')?.value || "";
+        const especieOutro = card.querySelector('[data-field="especie_outro"]')?.value.trim() || "";
+
+        if (!especieSelecionada) {
+          showStatus(`Selecione a espécie do Pet ${i + 1}.`, false);
+          return null;
+        }
+
+        if (especieSelecionada === "Outro" && !especieOutro) {
+          showStatus(`Informe a espécie do Pet ${i + 1} quando selecionar "Outro".`, false);
+          return null;
+        }
+
+        if (p.nascimento && isFutureDateOnly(p.nascimento)) {
+          showStatus(`A data de nascimento do Pet ${i + 1} não pode ser maior que a data de hoje.`, false);
+          return null;
+        }
+
+        if (p.alergias_flag && !p.alergias_texto) {
+          showStatus(`Descreva as alergias do Pet ${i + 1}.`, false);
+          return null;
+        }
+
+        if (p.doencas_flag && !p.doencas_texto) {
+          showStatus(`Descreva as doenças ou condição do Pet ${i + 1}.`, false);
+          return null;
+        }
+
+        if (p.cuidados_flag && !p.cuidados_texto) {
+          showStatus(`Descreva os cuidados especiais do Pet ${i + 1}.`, false);
+          return null;
+        }
+
+        if ((p.alimentacao_tipo === "comida natural" || p.alimentacao_tipo === "mista" || p.alimentacao_tipo === "outra") && !p.alimentacao_texto) {
+          showStatus(`Descreva a alimentação do Pet ${i + 1}.`, false);
+          return null;
+        }
+
+        if (p.vacina_viral) {
+          if (!p.vacina_viral_tipo) {
+            showStatus(`Selecione se a vacina viral do Pet ${i + 1} é V8 ou V10.`, false);
+            return null;
+          }
+
+          if (!p.vacina_viral_mes || !p.vacina_viral_ano) {
+            showStatus(`Informe mês e ano da vacina viral do Pet ${i + 1}.`, false);
+            return null;
+          }
+		  
+		            if (isFutureMonthYear(p.vacina_viral_mes, p.vacina_viral_ano)) {
+            showStatus(`A data da vacina viral do Pet ${i + 1} não pode ser superior ao mês atual.`, false);
+            return null;
+          }
+        }
+
+        if (p.vacina_antirrabica) {
+          if (!p.vacina_antirrabica_mes || !p.vacina_antirrabica_ano) {
+            showStatus(`Informe mês e ano da vacina antirrábica do Pet ${i + 1}.`, false);
+            return null;
+          }
+
+          if (isFutureMonthYear(p.vacina_antirrabica_mes, p.vacina_antirrabica_ano)) {
+            showStatus(`A data da vacina antirrábica do Pet ${i + 1} não pode ser superior ao mês atual.`, false);
+            return null;
+          }
+        }
+
+        if (p.antipulga) {
+          if (!p.antipulga_tipo) {
+            showStatus(`Selecione o tipo de antipulga do Pet ${i + 1}.`, false);
+            return null;
+          }
+
+          if (!p.antipulga_mes || !p.antipulga_ano) {
+            showStatus(`Informe mês e ano do antipulga do Pet ${i + 1}.`, false);
+            return null;
+          }
+		  
+		            if (isFutureMonthYear(p.antipulga_mes, p.antipulga_ano)) {
+            showStatus(`A data do antipulga do Pet ${i + 1} não pode ser superior ao mês atual.`, false);
+            return null;
+          }
+        }
+      }
+
+      return { tutor, pets };
+    }
+
+    async function fetchCidadeByCep(cep){
+      const dig = onlyDigits(cep);
+      if (dig.length !== 8) return null;
+
+      try{
+        const r = await fetch(`https://viacep.com.br/ws/${dig}/json/`);
+        const j = await r.json();
+        if (j && !j.erro) {
+          return {
+            cidade: j.localidade || "",
+            endereco: [j.logradouro, j.bairro].filter(Boolean).join(" - ")
+          };
+        }
+      }catch(e){}
+      return null;
+    }
+
+    async function enviarPreCadastro(){
+      const data = validateForm();
+      if (!data) return;
+
+      const btn = document.getElementById("btnEnviar");
+      btn.disabled = true;
+      btn.textContent = "Enviando...";
+
+      clearStatus();
+
+      try{
+        const payload = {
+          tutor: data.tutor,
+          pets: data.pets,
+          website: document.getElementById("website").value || ""
+        };
+
+        const r = await fetch(PRE_CADASTRO_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        });
+
+        let out = null;
+        try{
+          out = await r.json();
+        }catch(e){
+          out = null;
+        }
+
+        if (!r.ok) {
+          const msg = out?.error || "Não foi possível enviar o pré-cadastro.";
+          showStatus(msg, false);
+          return;
+        }
+
+        showStatus("Pré-cadastro enviado com sucesso. Nossa equipe irá revisar as informações antes da aprovação final.", true);
+        openModal("Pré-cadastro enviado", "Recebemos seus dados com sucesso.\n\nAgora nossa equipe irá revisar as informações antes da aprovação final no sistema.");
+
+        limparTudo();
+      }catch(e){
+        showStatus("Erro de conexão ao enviar o pré-cadastro.", false);
+      }finally{
+        btn.disabled = false;
+        btn.textContent = "Enviar pré-cadastro";
+      }
+    }
+
+    function limparTudo(){
+      document.getElementById("tutor_nome").value = "";
+      document.getElementById("tutor_cpf").value = "";
+      document.getElementById("tutor_tel").value = "";
+      document.getElementById("tutor_email").value = "";
+      document.getElementById("tutor_cep").value = "";
+      document.getElementById("tutor_cidade").value = "";
+      document.getElementById("tutor_endereco").value = "";
+	  document.getElementById("tutor_numero").value = "";
+      document.getElementById("tutor_vet").value = "";
+      document.getElementById("tutor_obs").value = "";
+      document.getElementById("website").value = "";
+
+      petsContainer.innerHTML = "";
+      addPetCard();
+      updateTutorSummary();
+
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth"
+      });
+    }
+
+    document.getElementById("btnEnviar").addEventListener("click", enviarPreCadastro);
+    document.getElementById("btnLimpar").addEventListener("click", () => {
+      openModal("Limpar formulário", "Os dados preenchidos serão apagados da tela.");
+      const old = document.getElementById("modalOk").onclick;
+      document.getElementById("modalOk").onclick = () => {
+        closeModal();
+        limparTudo();
+        document.getElementById("modalOk").onclick = old;
+      };
+    });
+
+    document.getElementById("tutor_cpf").addEventListener("input", (e)=>{
+      e.target.value = formatCPF(e.target.value);
+    });
+
+    document.getElementById("tutor_tel").addEventListener("input", (e)=>{
+      e.target.value = formatPhoneBR(e.target.value);
+    });
+
+    document.getElementById("tutor_cep").addEventListener("input", (e)=>{
+      e.target.value = formatCEP(e.target.value);
+    });
+
+    document.getElementById("tutor_cep").addEventListener("blur", async (e)=>{
+      const info = await fetchCidadeByCep(e.target.value);
+      if (!info) return;
+
+      const cidadeEl = document.getElementById("tutor_cidade");
+      const enderecoEl = document.getElementById("tutor_endereco");
+
+      if (!cidadeEl.value.trim()) cidadeEl.value = info.cidade || "";
+      if (!enderecoEl.value.trim()) enderecoEl.value = info.endereco || "";
+      updateTutorSummary();
+	});
+
+    [
+      "tutor_nome",
+      "tutor_cpf",
+      "tutor_tel",
+      "tutor_email",
+      "tutor_cidade"
+    ].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+
+      el.addEventListener("input", updateTutorSummary);
+      el.addEventListener("change", updateTutorSummary);
+    });
+
+    addPetCard();
+	updateTutorSummary();
+  </script>
+</body>
+</html>
