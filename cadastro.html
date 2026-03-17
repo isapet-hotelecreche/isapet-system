@@ -1,4 +1,4 @@
-<!-- cadastro.html v3.13 (patched) -->
+<!-- cadastro.html v3.14 (patched) -->
 <!doctype html>
 <html lang="pt-br">
 <head>
@@ -970,10 +970,190 @@
       `;
     }
 
+    function normalizePetSpecies(especie){
+      const s = String(especie || "")
+        .trim()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+
+      if (!s) return "";
+
+      if (s === "cachorro" || s === "cao" || s === "cao" || s === "dog") return "Cachorro";
+      if (s === "gato" || s === "cat") return "Gato";
+
+      return "Outro";
+    }
+
+    function getPetSpeciesProfile(especie){
+      const tipo = normalizePetSpecies(especie);
+
+      if (tipo === "Gato") {
+        return {
+          key: "Gato",
+          panelTitle: "Vacinas e proteção felina",
+          panelNote: "Para gatos, informe a vacinação felina, antirrábica e a proteção preventiva em dia.",
+          viralCardTitle: "Vacina múltipla felina",
+          viralAskLabel: "Vacina felina (V3, V4 ou V5) tomou?",
+          viralDateLabel: "Tipo / Mês / Ano da vacina felina",
+          viralOptions: `
+            <option value="">Tipo</option>
+            <option value="V3">V3</option>
+            <option value="V4">V4</option>
+            <option value="V5">V5</option>
+          `,
+          viralResumoLabel: "Vacina felina",
+          viralBadgeLabel: "Vacina felina",
+
+          antiRabicaCardTitle: "Vacina antirrábica",
+          antiRabicaAskLabel: "Antirrábica tomou?",
+          antiRabicaDateLabel: "Mês / Ano da antirrábica",
+          antiRabicaResumoLabel: "Antirrábica",
+          antiRabicaBadgeLabel: "Antirrábica",
+
+          antipulgaCardTitle: "Antipulga",
+          antipulgaAskLabel: "Antipulga em dia?",
+          antipulgaDateLabel: "Tipo / Mês / Ano do antipulga",
+          antipulgaOptions: `
+            <option value="">Tipo</option>
+            <option value="Pipeta">Pipeta</option>
+            <option value="Comprimido">Comprimido</option>
+            <option value="Spray">Spray</option>
+            <option value="Outro">Outro</option>
+          `,
+          antipulgaResumoLabel: "Antipulga",
+          antipulgaBadgeLabel: "Antipulga"
+        };
+      }
+
+      if (tipo === "Outro") {
+        return {
+          key: "Outro",
+          panelTitle: "Vacinação e manejo da espécie",
+          panelNote: "Para espécies diferentes de cães e gatos, informe apenas o que se aplica ao animal hospedado.",
+          viralCardTitle: "Vacinação específica da espécie",
+          viralAskLabel: "Possui vacinação específica / obrigatória em dia?",
+          viralDateLabel: "Tipo / Mês / Ano da vacinação",
+          viralOptions: `
+            <option value="">Tipo</option>
+            <option value="Específica da espécie">Específica da espécie</option>
+            <option value="Obrigatória">Obrigatória</option>
+            <option value="Recomendada">Recomendada</option>
+            <option value="Outra">Outra</option>
+          `,
+          viralResumoLabel: "Vacinação específica",
+          viralBadgeLabel: "Vacinação",
+
+          antiRabicaCardTitle: "Vacina antirrábica",
+          antiRabicaAskLabel: "Antirrábica tomou? (se aplicável)",
+          antiRabicaDateLabel: "Mês / Ano da antirrábica",
+          antiRabicaResumoLabel: "Antirrábica",
+          antiRabicaBadgeLabel: "Antirrábica",
+
+          antipulgaCardTitle: "Controle preventivo / antiparasitário",
+          antipulgaAskLabel: "Possui controle preventivo em dia?",
+          antipulgaDateLabel: "Tipo / Mês / Ano do controle preventivo",
+          antipulgaOptions: `
+            <option value="">Tipo</option>
+            <option value="Antiparasitário">Antiparasitário</option>
+            <option value="Controle preventivo">Controle preventivo</option>
+            <option value="Higienização específica">Higienização específica</option>
+            <option value="Outro">Outro</option>
+          `,
+          antipulgaResumoLabel: "Controle preventivo",
+          antipulgaBadgeLabel: "Preventivo"
+        };
+      }
+
+      return {
+        key: "Cachorro",
+        panelTitle: "Vacinas e proteção",
+        panelNote: "Para cães, informe a vacinação principal, antirrábica e a proteção antipulga / carrapato.",
+        viralCardTitle: "Vacina viral",
+        viralAskLabel: "Vacina viral (V8 ou V10) tomou?",
+        viralDateLabel: "Tipo / Mês / Ano da vacina viral",
+        viralOptions: `
+          <option value="">Tipo</option>
+          <option value="V8">V8</option>
+          <option value="V10">V10</option>
+        `,
+        viralResumoLabel: "Vacina viral",
+        viralBadgeLabel: "Vacina viral",
+
+        antiRabicaCardTitle: "Vacina antirrábica",
+        antiRabicaAskLabel: "Antirrábica tomou?",
+        antiRabicaDateLabel: "Mês / Ano da antirrábica",
+        antiRabicaResumoLabel: "Antirrábica",
+        antiRabicaBadgeLabel: "Antirrábica",
+
+        antipulgaCardTitle: "Antipulga / coleira",
+        antipulgaAskLabel: "Antipulga / coleira em dia?",
+        antipulgaDateLabel: "Tipo / Mês / Ano do antipulga",
+        antipulgaOptions: `
+          <option value="">Tipo</option>
+          <option value="Comprimido">Comprimido</option>
+          <option value="Pipeta">Pipeta</option>
+          <option value="Spray">Spray</option>
+          <option value="Coleira">Coleira</option>
+          <option value="Outro">Outro</option>
+        `,
+        antipulgaResumoLabel: "Antipulga / coleira",
+        antipulgaBadgeLabel: "Antipulga"
+      };
+    }
+
+    function applySpeciesProfileToCard(card){
+      if (!card) return;
+
+      const especieSelecionada = card.querySelector('[data-field="especie"]')?.value || "";
+      const especieOutro = card.querySelector('[data-field="especie_outro"]')?.value.trim() || "";
+      const especieFinal = especieSelecionada === "Outro" ? especieOutro : especieSelecionada;
+
+      const profile = getPetSpeciesProfile(especieFinal);
+
+      const setText = (selector, text) => {
+        const el = card.querySelector(selector);
+        if (el) el.textContent = text;
+      };
+
+      setText('[data-role="vacina-panel-title"]', profile.panelTitle);
+      setText('[data-role="vacina-panel-note"]', profile.panelNote);
+
+      setText('[data-role="viral-card-title"]', profile.viralCardTitle);
+      setText('[data-role="viral-ask-label"]', profile.viralAskLabel);
+      setText('[data-role="viral-date-label"]', profile.viralDateLabel);
+
+      setText('[data-role="antirrabica-card-title"]', profile.antiRabicaCardTitle);
+      setText('[data-role="antirrabica-ask-label"]', profile.antiRabicaAskLabel);
+      setText('[data-role="antirrabica-date-label"]', profile.antiRabicaDateLabel);
+
+      setText('[data-role="antipulga-card-title"]', profile.antipulgaCardTitle);
+      setText('[data-role="antipulga-ask-label"]', profile.antipulgaAskLabel);
+      setText('[data-role="antipulga-date-label"]', profile.antipulgaDateLabel);
+
+      const viralTipo = card.querySelector('[data-field="vacina_viral_tipo"]');
+      if (viralTipo) {
+        const valorAtual = viralTipo.value || "";
+        viralTipo.innerHTML = profile.viralOptions;
+        const existe = [...viralTipo.options].some(opt => opt.value === valorAtual);
+        viralTipo.value = existe ? valorAtual : "";
+      }
+
+      const antipulgaTipo = card.querySelector('[data-field="antipulga_tipo"]');
+      if (antipulgaTipo) {
+        const valorAtual = antipulgaTipo.value || "";
+        antipulgaTipo.innerHTML = profile.antipulgaOptions;
+        const existe = [...antipulgaTipo.options].some(opt => opt.value === valorAtual);
+        antipulgaTipo.value = existe ? valorAtual : "";
+      }
+    }
+
     function montarResumoPetHtml(pet, index){
       const especieOuRaca = [textoOuPadrao(pet?.especie, ""), textoOuPadrao(pet?.raca, "")]
         .filter(Boolean)
         .join(" • ") || "Não informado";
+		
+		      const profile = getPetSpeciesProfile(pet?.especie);
 
       const vacinaViralDetalhe = pet?.vacina_viral
         ? `${textoOuPadrao(pet?.vacina_viral_tipo)} • ${formatMonthYearBR(pet?.vacina_viral_mes, pet?.vacina_viral_ano)}`
@@ -989,9 +1169,9 @@
 
       const badges = `
         <div class="resume-badges">
-          <span class="${pet?.vacina_viral ? "resume-badge-ok" : "resume-badge-no"}">Vacina viral: ${pet?.vacina_viral ? "Sim" : "Não"}</span>
-          <span class="${pet?.vacina_antirrabica ? "resume-badge-ok" : "resume-badge-no"}">Antirrábica: ${pet?.vacina_antirrabica ? "Sim" : "Não"}</span>
-          <span class="${pet?.antipulga ? "resume-badge-ok" : "resume-badge-no"}">Antipulga: ${pet?.antipulga ? "Sim" : "Não"}</span>
+          <span class="${pet?.vacina_viral ? "resume-badge-ok" : "resume-badge-no"}">${escHtml(profile.viralBadgeLabel)}: ${pet?.vacina_viral ? "Sim" : "Não"}</span>
+          <span class="${pet?.vacina_antirrabica ? "resume-badge-ok" : "resume-badge-no"}">${escHtml(profile.antiRabicaBadgeLabel)}: ${pet?.vacina_antirrabica ? "Sim" : "Não"}</span>
+          <span class="${pet?.antipulga ? "resume-badge-ok" : "resume-badge-no"}">${escHtml(profile.antipulgaBadgeLabel)}: ${pet?.antipulga ? "Sim" : "Não"}</span>
           <span class="${pet?.castrado ? "resume-badge-ok" : "resume-badge-no"}">Castrado: ${pet?.castrado ? "Sim" : "Não"}</span>
         </div>
       `;
@@ -1049,12 +1229,12 @@
           </div>
 
           <div class="resume-block">
-            <div class="resume-block-title">Vacinas e proteção</div>
-            <ul class="resume-list">
-              <li><strong>Vacina viral:</strong> ${escHtml(vacinaViralDetalhe)}</li>
-              <li><strong>Antirrábica:</strong> ${escHtml(vacinaAntirrabicaDetalhe)}</li>
-              <li><strong>Antipulga / coleira:</strong> ${escHtml(antipulgaDetalhe)}</li>
-            </ul>
+<div class="resume-block-title">${escHtml(profile.panelTitle)}</div>
+<ul class="resume-list">
+  <li><strong>${escHtml(profile.viralResumoLabel)}:</strong> ${escHtml(vacinaViralDetalhe)}</li>
+  <li><strong>${escHtml(profile.antiRabicaResumoLabel)}:</strong> ${escHtml(vacinaAntirrabicaDetalhe)}</li>
+  <li><strong>${escHtml(profile.antipulgaResumoLabel)}:</strong> ${escHtml(antipulgaDetalhe)}</li>
+</ul>
           </div>
         </div>
       `;
@@ -1432,14 +1612,15 @@
           </div>
 
           <div class="vacina-panel">
-            <div class="vacina-panel-title">Vacinas e proteção</div>
+            <div class="vacina-panel-title" data-role="vacina-panel-title">Vacinas e proteção</div>
+            <div class="soft-note" data-role="vacina-panel-note">Para cães, informe a vacinação principal, antirrábica e a proteção antipulga / carrapato.</div>
 
             <div class="vacina-card">
-              <div class="vacina-card-title">Vacina viral</div>
+              <div class="vacina-card-title" data-role="viral-card-title">Vacina viral</div>
 
               <div class="row">
                 <div class="col">
-                  <label>Vacina viral (V8 ou V10) tomou?</label>
+                  <label data-role="viral-ask-label">Vacina viral (V8 ou V10) tomou?</label>
                   <select data-field="vacina_viral" class="vacina-toggle" data-vacina="viral">
                     <option value="false">Não</option>
                     <option value="true">Sim</option>
@@ -1447,7 +1628,7 @@
                 </div>
 
                 <div class="col vacina-date-wrap hidden" data-vacina-wrap="viral">
-                  <label>Tipo / Mês / Ano da vacina viral</label>
+                  <label data-role="viral-date-label">Tipo / Mês / Ano da vacina viral</label>
                   <div class="row">
                     <div class="col">
                       <select data-field="vacina_viral_tipo">
@@ -1472,11 +1653,11 @@
             </div>
 
             <div class="vacina-card">
-              <div class="vacina-card-title">Vacina antirrábica</div>
+              <div class="vacina-card-title" data-role="antirrabica-card-title">Vacina antirrábica</div>
 
               <div class="row">
                 <div class="col">
-                  <label>Antirrábica tomou?</label>
+                  <label data-role="antirrabica-ask-label">Antirrábica tomou?</label>
                   <select data-field="vacina_antirrabica" class="vacina-toggle" data-vacina="antirrabica">
                     <option value="false">Não</option>
                     <option value="true">Sim</option>
@@ -1484,7 +1665,7 @@
                 </div>
 
                 <div class="col vacina-date-wrap hidden" data-vacina-wrap="antirrabica">
-                  <label>Mês / Ano da antirrábica</label>
+                  <label data-role="antirrabica-date-label">Mês / Ano da antirrábica</label>
                   <div class="row">
                     <div class="col">
                       <select data-field="vacina_antirrabica_mes">
@@ -1502,11 +1683,11 @@
             </div>
 
             <div class="vacina-card">
-              <div class="vacina-card-title">Antipulga / coleira</div>
+              <div class="vacina-card-title" data-role="antipulga-card-title">Antipulga / coleira</div>
 
               <div class="row">
                 <div class="col">
-                  <label>Antipulga / coleira em dia?</label>
+                  <label data-role="antipulga-ask-label">Antipulga / coleira em dia?</label>
                   <select data-field="antipulga" class="vacina-toggle" data-vacina="antipulga">
                     <option value="false">Não</option>
                     <option value="true">Sim</option>
@@ -1514,7 +1695,7 @@
                 </div>
 
                 <div class="col vacina-date-wrap hidden" data-vacina-wrap="antipulga">
-                  <label>Tipo / Mês / Ano do antipulga</label>
+                  <label data-role="antipulga-date-label">Tipo / Mês / Ano do antipulga</label>
                   <div class="row">
                     <div class="col">
                       <select data-field="antipulga_tipo">
@@ -1627,10 +1808,24 @@
       refreshAlimentacao();
 
       const especieSel = card.querySelector(".especie-select");
-      if (especieSel) {
-        especieSel.addEventListener("change", () => refreshEspecieRaca(card));
+      const especieOutroInput = card.querySelector('[data-field="especie_outro"]');
+
+      const refreshSpeciesUi = () => {
         refreshEspecieRaca(card);
+        applySpeciesProfileToCard(card);
+        updatePetTitles();
+      };
+
+      if (especieSel) {
+        especieSel.addEventListener("change", refreshSpeciesUi);
       }
+
+      if (especieOutroInput) {
+        especieOutroInput.addEventListener("input", refreshSpeciesUi);
+        especieOutroInput.addEventListener("change", refreshSpeciesUi);
+      }
+
+      refreshSpeciesUi();
 	  
 	        const nascimentoInput = card.querySelector('[data-field="nascimento"]');
       if (nascimentoInput) {
@@ -1912,48 +2107,50 @@
           return null;
         }
 
-        if (p.vacina_viral) {
+        const profile = getPetSpeciesProfile(p.especie);
+        
+		if (p.vacina_viral) {
           if (!p.vacina_viral_tipo) {
-            showStatus(`Selecione se a vacina viral do Pet ${i + 1} é V8 ou V10.`, false);
+            showStatus(`Selecione o tipo de ${profile.viralResumoLabel.toLowerCase()} do Pet ${i + 1}.`, false);
             return null;
           }
 
           if (!p.vacina_viral_mes || !p.vacina_viral_ano) {
-            showStatus(`Informe mês e ano da vacina viral do Pet ${i + 1}.`, false);
+            showStatus(`Informe mês e ano de ${profile.viralResumoLabel.toLowerCase()} do Pet ${i + 1}.`, false);
             return null;
           }
-		  
-		            if (isFutureMonthYear(p.vacina_viral_mes, p.vacina_viral_ano)) {
-            showStatus(`A data da vacina viral do Pet ${i + 1} não pode ser superior ao mês atual.`, false);
+
+          if (isFutureMonthYear(p.vacina_viral_mes, p.vacina_viral_ano)) {
+            showStatus(`A data de ${profile.viralResumoLabel.toLowerCase()} do Pet ${i + 1} não pode ser superior ao mês atual.`, false);
             return null;
           }
         }
 
         if (p.vacina_antirrabica) {
           if (!p.vacina_antirrabica_mes || !p.vacina_antirrabica_ano) {
-            showStatus(`Informe mês e ano da vacina antirrábica do Pet ${i + 1}.`, false);
+            showStatus(`Informe mês e ano de ${profile.antiRabicaResumoLabel.toLowerCase()} do Pet ${i + 1}.`, false);
             return null;
           }
 
           if (isFutureMonthYear(p.vacina_antirrabica_mes, p.vacina_antirrabica_ano)) {
-            showStatus(`A data da vacina antirrábica do Pet ${i + 1} não pode ser superior ao mês atual.`, false);
+            showStatus(`A data de ${profile.antiRabicaResumoLabel.toLowerCase()} do Pet ${i + 1} não pode ser superior ao mês atual.`, false);
             return null;
           }
         }
 
         if (p.antipulga) {
           if (!p.antipulga_tipo) {
-            showStatus(`Selecione o tipo de antipulga do Pet ${i + 1}.`, false);
+            showStatus(`Selecione o tipo de ${profile.antipulgaResumoLabel.toLowerCase()} do Pet ${i + 1}.`, false);
             return null;
           }
 
           if (!p.antipulga_mes || !p.antipulga_ano) {
-            showStatus(`Informe mês e ano do antipulga do Pet ${i + 1}.`, false);
+            showStatus(`Informe mês e ano de ${profile.antipulgaResumoLabel.toLowerCase()} do Pet ${i + 1}.`, false);
             return null;
           }
-		  
-		            if (isFutureMonthYear(p.antipulga_mes, p.antipulga_ano)) {
-            showStatus(`A data do antipulga do Pet ${i + 1} não pode ser superior ao mês atual.`, false);
+
+          if (isFutureMonthYear(p.antipulga_mes, p.antipulga_ano)) {
+            showStatus(`A data de ${profile.antipulgaResumoLabel.toLowerCase()} do Pet ${i + 1} não pode ser superior ao mês atual.`, false);
             return null;
           }
         }

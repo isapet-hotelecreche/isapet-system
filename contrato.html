@@ -1,4 +1,4 @@
-<!-- contrato.html v3.10 (patched) -->
+<!-- contrato.html v3.14 (patched) -->
 <!doctype html>
 <html lang="pt-br">
 <head>
@@ -229,85 +229,125 @@
     background:#fcfaff;
   }
   
-    .resume-card{
-    background: linear-gradient(135deg, #ffffff 0%, #fcfaff 100%);
-    border:1px solid var(--line);
-    border-radius: var(--radius);
-    padding: 14px;
-    margin-top: 10px;
-    box-shadow: 0 8px 18px rgba(0,0,0,.05);
+.resume-card{
+  background: linear-gradient(135deg, #ffffff 0%, #fcfaff 100%);
+  border:1px solid var(--line);
+  border-radius: 14px;
+  padding: 10px 12px;
+  margin-top: 10px;
+  box-shadow: 0 8px 18px rgba(0,0,0,.05);
+}
+
+.resume-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-bottom:8px;
+}
+
+.resume-title{
+  margin:0;
+  font-size:14px;
+  font-weight:900;
+  color:#111827;
+}
+
+.resume-subtitle{
+  display:none;
+}
+
+.resume-grid{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+
+.resume-item,
+.resume-item.wide{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  border:1px solid var(--line);
+  background:#ffffff;
+  border-radius:999px;
+  padding:6px 10px;
+  min-height:auto;
+  min-width:0;
+  max-width:100%;
+  grid-column: span 1;
+}
+
+.resume-label{
+  font-size:10px;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+  font-weight:900;
+  color:#6b7280;
+  margin:0;
+  white-space:nowrap;
+}
+
+.resume-label::after{
+  content: ":";
+}
+
+.resume-value{
+  font-size:12px;
+  line-height:1.2;
+  font-weight:800;
+  color:#111827;
+  word-break:break-word;
+}
+
+.resume-value.muted{
+  color:#6b7280;
+  font-weight:700;
+}
+
+.resume-value.ok{
+  color:#166534;
+}
+
+.resume-value.warn{
+  color:#92400e;
+}
+
+.resume-value.err{
+  color:#991b1b;
+}
+
+@media (max-width: 700px){
+  .resume-card{
+    padding:8px 10px;
   }
 
   .resume-head{
-    display:flex;
-    align-items:flex-start;
-    justify-content:space-between;
-    gap:12px;
-    flex-wrap:wrap;
-    margin-bottom:12px;
-  }
-
-  .resume-title{
-    margin:0;
-    font-size:18px;
-    font-weight:900;
-    color:#111827;
-  }
-
-  .resume-subtitle{
-    margin-top:4px;
-    font-size:13px;
-    color:var(--muted);
-    line-height:1.4;
-  }
-
-  .resume-grid{
-    display:grid;
-    grid-template-columns: repeat(4, minmax(0,1fr));
-    gap:10px;
-  }
-
-  .resume-item{
-    border:1px solid var(--line);
-    background:#ffffff;
-    border-radius:14px;
-    padding:12px;
-    min-height:84px;
-  }
-
-  .resume-label{
-    font-size:11px;
-    text-transform:uppercase;
-    letter-spacing:.06em;
-    font-weight:900;
-    color:#6b7280;
     margin-bottom:6px;
   }
 
+  .resume-title{
+    font-size:13px;
+  }
+
+  .resume-grid{
+    gap:6px;
+  }
+
+  .resume-item,
+  .resume-item.wide{
+    padding:5px 8px;
+  }
+
+  .resume-label{
+    font-size:9px;
+  }
+
   .resume-value{
-    font-size:15px;
-    line-height:1.35;
-    font-weight:800;
-    color:#111827;
-    word-break:break-word;
+    font-size:11px;
   }
-
-  .resume-value.muted{
-    color:#6b7280;
-    font-weight:700;
-  }
-
-  .resume-value.ok{
-    color:#166534;
-  }
-
-  .resume-value.warn{
-    color:#92400e;
-  }
-
-  .resume-value.err{
-    color:#991b1b;
-  }
+}
 
   @media (max-width: 700px){
     .wrap{
@@ -753,24 +793,16 @@
 </div>
 
 <div class="resume-card" id="resumeCard" style="display:none">
-  <div class="resume-head">
-    <div>
-      <h2 class="resume-title">Resumo do contrato</h2>
-      <div class="resume-subtitle">
-        Confira abaixo as informações principais deste documento antes de prosseguir com a leitura e o aceite digital.
-      </div>
-    </div>
+<div class="resume-head">
+  <div>
+    <h2 class="resume-title">Resumo rápido do contrato</h2>
   </div>
+</div>
 
   <div class="resume-grid">
     <div class="resume-item">
-      <div class="resume-label">Tutor responsável</div>
-      <div class="resume-value" id="resumeTutor">—</div>
-    </div>
-
-    <div class="resume-item">
-      <div class="resume-label">CPF do tutor</div>
-      <div class="resume-value" id="resumeCpf">—</div>
+      <div class="resume-label">N° do contrato</div>
+      <div class="resume-value" id="resumeContractNo">—</div>
     </div>
 
     <div class="resume-item">
@@ -781,6 +813,31 @@
     <div class="resume-item">
       <div class="resume-label">Situação</div>
       <div class="resume-value muted" id="resumeStatus">—</div>
+    </div>
+
+    <div class="resume-item">
+      <div class="resume-label">Validade / aceite</div>
+      <div class="resume-value muted" id="resumeWhen">—</div>
+    </div>
+
+    <div class="resume-item wide">
+      <div class="resume-label">Tutor responsável</div>
+      <div class="resume-value" id="resumeTutor">—</div>
+    </div>
+
+    <div class="resume-item">
+      <div class="resume-label">CPF do tutor</div>
+      <div class="resume-value" id="resumeCpf">—</div>
+    </div>
+
+    <div class="resume-item">
+      <div class="resume-label">Quantidade de pets</div>
+      <div class="resume-value" id="resumePetCount">—</div>
+    </div>
+
+    <div class="resume-item wide">
+      <div class="resume-label">Espécies no contrato</div>
+      <div class="resume-value" id="resumeSpecies">—</div>
     </div>
   </div>
 </div>
@@ -1000,11 +1057,25 @@ const tutorData = extractTutorDataFromContractText(
   ""
 );
 
+const petsData = extractPetsDataFromContractText(
+  document.getElementById("texto").innerText ||
+  document.getElementById("texto").textContent ||
+  ""
+);
+
 const resumeCard = document.getElementById("resumeCard");
+const resumeContractNo = document.getElementById("resumeContractNo");
 const resumeTutor = document.getElementById("resumeTutor");
 const resumeCpf = document.getElementById("resumeCpf");
 const resumeKind = document.getElementById("resumeKind");
 const resumeStatus = document.getElementById("resumeStatus");
+const resumeWhen = document.getElementById("resumeWhen");
+const resumePetCount = document.getElementById("resumePetCount");
+const resumeSpecies = document.getElementById("resumeSpecies");
+
+if (resumeContractNo) {
+  resumeContractNo.textContent = contractNo || "—";
+}
 
 if (resumeTutor) {
   resumeTutor.textContent = tutorData.nome || "Não identificado";
@@ -1016,6 +1087,32 @@ if (resumeCpf) {
 
 if (resumeKind) {
   resumeKind.textContent = label.charAt(0) + label.slice(1).toLowerCase();
+}
+
+if (resumePetCount) {
+  resumePetCount.textContent = petsData.petCount ? String(petsData.petCount) : "Não identificado";
+}
+
+if (resumeSpecies) {
+  resumeSpecies.textContent = petsData.species.length
+    ? petsData.species.join(", ")
+    : "Não identificado";
+}
+
+if (resumeWhen) {
+  if (data.status === "aceito" && accStr) {
+    resumeWhen.textContent = "Aceito em " + accStr;
+    resumeWhen.className = "resume-value ok";
+  } else if (data.status === "expirado") {
+    resumeWhen.textContent = "Link expirado";
+    resumeWhen.className = "resume-value warn";
+  } else if (expStr) {
+    resumeWhen.textContent = "Expira em " + expStr;
+    resumeWhen.className = "resume-value muted";
+  } else {
+    resumeWhen.textContent = "Não informado";
+    resumeWhen.className = "resume-value muted";
+  }
 }
 
 if (resumeStatus) {
@@ -1108,7 +1205,7 @@ if (btnPrint){
       }
 
       // pendente
-      setStatus("Confira o contrato abaixo e confirme o aceite abaixo.", "");
+      setStatus("<strong>Contrato carregado com sucesso.</strong> Confira as informações abaixo e, se estiver tudo correto, realize o aceite digital.", "");
       document.getElementById("cardAceite").style.display = "block";
 
 // máscara CPF (opcional)
@@ -1215,7 +1312,7 @@ const nomeTutorNorm = normalizeName(tutorData.nome);
           return;
         }
 
-setStatus("<strong>Aceite registrado com sucesso.</strong> Atualizando contrato…", "ok");
+setStatus("<strong>Aceite registrado com sucesso.</strong> O contrato será recarregado para exibir a assinatura digital e o status atualizado.", "ok");
 document.getElementById("cardAceite").style.display = "none";
 
 setTimeout(() => {
@@ -1272,6 +1369,38 @@ function isValidCPF(cpf){
   if (resto !== parseInt(cpf.substring(10, 11), 10)) return false;
 
   return true;
+}
+
+function extractPetsDataFromContractText(text){
+  const raw = String(text || '');
+
+  const clean = raw
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\r/g, '')
+    .replace(/\u00A0/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n+/g, '\n')
+    .trim();
+
+  const petBlocks = clean.match(/PET\s+\d+:[\s\S]*?(?=PET\s+\d+:|$)/gi) || [];
+  const speciesSet = new Set();
+
+  for (const block of petBlocks) {
+    const m = block.match(/Esp[eé]cie:\s*([^|\n]+)/i);
+    if (m && m[1]) {
+      const especie = m[1].trim();
+      if (especie) speciesSet.add(especie);
+    }
+  }
+
+  return {
+    petCount: petBlocks.length,
+    species: Array.from(speciesSet)
+  };
 }
 
 function extractTutorDataFromContractText(text){
