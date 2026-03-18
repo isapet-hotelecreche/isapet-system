@@ -1,4 +1,4 @@
-// app.js v10.22 (patched)
+// app.js v10.26 (patched)
 document.addEventListener('DOMContentLoaded', async () => {
   // Loading (tela inicial)
   const loadingEl = document.getElementById('app_loading');
@@ -556,6 +556,17 @@ function uiContractLinkModal({ title='Contrato', url='', expiresAt=null, accepte
       window.open(printUrl, '_blank', 'noopener,noreferrer');
     };
   });
+}
+
+function getStatusTagClass(status){
+  const s = String(status || '').trim().toLowerCase();
+
+  if (s === 'agendado' || s === 'agendada') return 'tag-yellow';
+  if (s === 'checkin' || s === 'check-in' || s === 'check-in feito') return 'tag-blue';
+  if (s === 'checkout' || s === 'check-out' || s === 'check-out feito' || s === 'concluído' || s === 'concluido') return 'tag-green';
+  if (s === 'cancelado' || s === 'cancelada') return 'tag-red';
+
+  return 'tag';
 }
 
 // Helpers
@@ -2677,7 +2688,7 @@ tr.innerHTML = `<td>${h.id}</td>
   </td>
 
   <td>
-    <span class="tag">${h.status||''}</span>
+    <span class="tag ${getStatusTagClass(h.status)}">${h.status || ''}</span>
     ${h.nota && h.nota.trim() ? ' <span title="Tem observações">📝</span>' : ''}
   </td>
 
@@ -2939,7 +2950,7 @@ async function renderCreche(prefill = null){
       </div>
       <div class="space"></div>
       <div class="list-scroll"><table><thead><tr>
-        <th>ID</th><th>Mês</th><th>Tutor & Pets</th><th>Dias</th><th>Valor</th><th>Status</th><th>Ações</th>
+        <th>ID</th><th>Mês</th><th>Tutor & Pets</th><th>Dias</th><th>Valor</th><th>Contrato</th><th>Status</th><th>Ações</th>
       </tr></thead><tbody id="c_tbody"></tbody></table></div>
     </div>
   </div>`;
@@ -3161,11 +3172,12 @@ async function renderCreche(prefill = null){
   repaint();
 
   document.getElementById('c_limpar').onclick = ()=>renderCreche();
+
   document.getElementById('c_salvar').onclick = async () => {
-    const get     = id => document.getElementById(id);
+    const get       = id => document.getElementById(id);
     const tutorId   = Number(selectedCrecheTutorId || 0);
-    const petIds  = Array.from(document.querySelectorAll('input[name="c_pet"]:checked')).map(cb => Number(cb.value));
-    const valorStr = (get('c_valor').value || '').toString().trim();
+    const petIds    = Array.from(document.querySelectorAll('input[name="c_pet"]:checked')).map(cb => Number(cb.value));
+    const valorStr  = (get('c_valor').value || '').toString().trim();
 
     // === VALIDAÇÕES OBRIGATÓRIAS ===
 
@@ -3185,21 +3197,22 @@ async function renderCreche(prefill = null){
       return;
     }
 
-
     // Valor obrigatório
     if (!valorStr) {
       toast('O campo Valor não pode ficar vazio', false);
       get('c_valor').focus();
       return;
     }
+
     // === FIM VALIDAÇÕES OBRIGATÓRIAS ===
 
-    const dias = Object.keys(selection).sort().map(d=>({
-      data:d,
-      entrada: selection[d].entrada||'',
-      saida: selection[d].saida||''
+    const dias = Object.keys(selection).sort().map(d => ({
+      data: d,
+      entrada: selection[d].entrada || '',
+      saida: selection[d].saida || ''
     }));
-    if (dias.length===0) {
+
+    if (dias.length === 0) {
       toast('Selecione ao menos um dia no calendário', false);
       return;
     }
@@ -3216,6 +3229,7 @@ async function renderCreche(prefill = null){
     };
 
     const id = await DB.add('creches', rec);
+
     await DB.add('logs', {
       at: new Date().toISOString(),
       action: 'create',
@@ -3223,14 +3237,23 @@ async function renderCreche(prefill = null){
       entityId: id,
       note: `Tutor #${tutorId} com ${dias.length} dias`
     });
+
     toast('Agenda de creche salva');
+
+    // ✅ gera link do contrato automaticamente para creche
+    try {
+      await gerarLinkContrato("creche", id);
+    } catch (e) {
+      console.warn("Falha ao gerar contrato da creche:", e);
+      toast("Creche salva, mas não gerou link: " + (e?.message || e), false);
+    }
+
     renderCreche();
   };
 
-
   // Busca de agendas de creche
-  const cBuscaInput  = document.getElementById('c_busca');
-  const cBuscarBtn   = document.getElementById('c_buscar');
+  const cBuscaInput = document.getElementById('c_busca');
+  const cBuscarBtn  = document.getElementById('c_buscar');
 
   if (cBuscarBtn && cBuscaInput) {
     cBuscarBtn.onclick = () => {
@@ -3242,6 +3265,7 @@ async function renderCreche(prefill = null){
   // Carrega tudo inicialmente (sem filtro)
   loadCreches('');
 }
+
 
 async function loadCreches(q){
   const tbody = document.getElementById('c_tbody');
@@ -3268,6 +3292,25 @@ async function loadCreches(q){
 
   const pets = await DB.list('pets');
   const byPet = Object.fromEntries(pets.map(p => [p.id, p]));
+  
+  // ✅ contratos (para pintar status do "Contrato")
+let contratos = [];
+try {
+  contratos = await DB.list('contratos');
+} catch (e) {
+  console.warn("Aviso: não foi possível carregar contratos da creche.", e);
+  contratos = [];
+}
+
+// pega o contrato mais recente por (kind|ref_id)
+const byContrato = {};
+for (const c of (contratos || [])) {
+  const ref = (c.ref_id ?? c.refId ?? c.refID);
+  const key = `${c.kind}|${ref}`;
+  if (!byContrato[key] || Number(c.id) > Number(byContrato[key].id)) {
+    byContrato[key] = c;
+  }
+}
 
   const termo = (q || '').trim().toLowerCase();
 
@@ -3314,29 +3357,78 @@ async function loadCreches(q){
     }
 
     const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${c.id}</td>
-      <td>${mesRefBR}</td>
-      <td><strong>${tutor}</strong> — ${petNames}</td>
-      <td>${diasCount}</td>
-      <td>${fmtMoney(c.valor || 0)}</td>
-      <td>
-        <span class="tag ${c.status==='Concluído' ? 'tag-green' : (c.status==='Cancelado' ? 'tag-red' : 'tag-yellow')}" style="padding:2px 6px">
-          ${c.status || 'Agendado'}
-        </span>
-        ${c.nota && c.nota.trim() ? ' <span title="Tem observações">📝</span>' : ''}
-      </td>
-      <td class="flex">
-        <button class="btn btn-ghost" data-edit="${c.id}">Editar</button>
-        <button class="btn btn-danger" data-del="${c.id}">Excluir</button>
-      </td>
-    `;
+const ckey = `creche|${c.id}`;
+const contrato = byContrato[ckey];
+
+let contratoClass = 'tag-red';
+let contratoTitle = 'Contrato NÃO gerado (clique para gerar/abrir o link)';
+
+if (contrato) {
+  const exp = (contrato.expires_at ?? contrato.expiresAt ?? null);
+  const expMs = exp ? new Date(exp).getTime() : 0;
+  const expired = expMs ? (Date.now() > expMs) : false;
+
+  const aceito =
+    contrato?.status === 'aceito' ||
+    contrato?.accepted_at ||
+    contrato?.acceptedAt;
+
+  if (aceito) {
+    contratoClass = 'tag-green';
+    contratoTitle = 'Contrato ACEITO (clique para abrir)';
+  } else if (expired || contrato?.status === 'expirado') {
+    contratoClass = 'tag-yellow';
+    contratoTitle = 'Contrato expirado (clique para gerar novo link)';
+  } else {
+    contratoClass = 'tag-yellow';
+    contratoTitle = 'Contrato pendente (clique para abrir/copiar)';
+  }
+}
+
+tr.innerHTML = `
+  <td>${c.id}</td>
+  <td>${mesRefBR}</td>
+  <td><strong>${tutor}</strong> — ${petNames}</td>
+  <td>${diasCount}</td>
+  <td>${fmtMoney(c.valor || 0)}</td>
+
+  <td>
+    <span class="tag ${contratoClass}" data-contrato-creche="${c.id}" title="${contratoTitle}" style="cursor:pointer;">
+      Contrato
+    </span>
+  </td>
+
+  <td>
+<span class="tag ${getStatusTagClass(c.status)}" style="padding:2px 6px">
+  ${c.status || 'Agendado'}
+</span>
+    ${c.nota && c.nota.trim() ? ' <span title="Tem observações">📝</span>' : ''}
+  </td>
+
+  <td class="flex">
+    <button class="btn btn-ghost" data-edit="${c.id}">Editar</button>
+    <button class="btn btn-danger" data-del="${c.id}">Excluir</button>
+  </td>
+`;
     tbody.appendChild(tr);
   }
 
   // ações dos botões — agora só Editar e Excluir
-  $all('[data-del]').forEach(b => b.onclick = () => delCreche(b.getAttribute('data-del')));
-  $all('[data-edit]').forEach(b => b.onclick = () => editCreche(b.getAttribute('data-edit')));
+$all('[data-del]').forEach(b => b.onclick = () => delCreche(b.getAttribute('data-del')));
+$all('[data-edit]').forEach(b => b.onclick = () => editCreche(b.getAttribute('data-edit')));
+
+$all('[data-contrato-creche]').forEach(b => b.onclick = async () => {
+  const id = Number(b.getAttribute('data-contrato-creche'));
+  try {
+    await showContractLink('creche', id);
+
+    const qAtual = document.getElementById('c_busca')?.value || '';
+    await loadCreches(qAtual);
+  } catch (e) {
+    console.error(e);
+    toast('Não consegui abrir o contrato da creche. Veja o console.', false);
+  }
+});
 }
 
 async function delCreche(id){

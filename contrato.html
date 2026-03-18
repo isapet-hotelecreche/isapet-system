@@ -1,4 +1,4 @@
-<!-- contrato.html v3.14 (patched) -->
+<!-- contrato.html v3.15 (patched) -->
 <!doctype html>
 <html lang="pt-br">
 <head>
@@ -896,7 +896,7 @@
       <label>
         <input id="chk" type="checkbox" />
         <div>
-          <div><strong>Declaro que li,</strong> compreendi e estou de acordo com as condições deste contrato, bem como com as regras internas do <strong>Isa Pet Hotel & Creche</strong> para hospedagem de animais.</div>
+          <div id="acceptText"><strong>Declaro que li,</strong> compreendi e estou de acordo com as condições deste contrato, bem como com as regras internas do <strong>Isa Pet Hotel & Creche</strong>.</div>
           <div class="small">Ao confirmar, o aceite será registrado com data e hora.</div>
         </div>
       </label>
@@ -1012,6 +1012,18 @@ function normalizeContractText(text, contractNo){
       }
 
 const label = kindLabel(data.kind, data.contract_text);
+
+const acceptText = document.getElementById("acceptText");
+if (acceptText) {
+  if (data.kind === "creche") {
+    acceptText.innerHTML = `<strong>Declaro que li,</strong> compreendi e estou de acordo com as condições deste contrato, bem como com as regras internas do <strong>Isa Pet Hotel & Creche</strong> para serviço de creche canina.`;
+  } else if (data.kind === "adaptacao") {
+    acceptText.innerHTML = `<strong>Declaro que li,</strong> compreendi e estou de acordo com as condições deste contrato, bem como com as regras internas do <strong>Isa Pet Hotel & Creche</strong> para adaptação do animal.`;
+  } else {
+    acceptText.innerHTML = `<strong>Declaro que li,</strong> compreendi e estou de acordo com as condições deste contrato, bem como com as regras internas do <strong>Isa Pet Hotel & Creche</strong> para hospedagem de animais.`;
+  }
+}
+
 document.getElementById("pill").textContent = label;
 document.getElementById("docTitle").textContent =
   label.charAt(0) + label.slice(1).toLowerCase();
