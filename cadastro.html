@@ -1,4 +1,4 @@
-<!-- cadastro.html v3.14 (patched) -->
+<!-- cadastro.html v3.18 (patched) -->
 <!doctype html>
 <html lang="pt-br">
 <head>
@@ -1527,14 +1527,14 @@
 
             <div class="row">
               <div class="col raca-select-wrap">
-                <label>Raça</label>
+                <label>Raça *</label>
                 <select data-field="raca" class="raca-select">
                   <option value="">Selecione a espécie primeiro</option>
                 </select>
               </div>
 
               <div class="col">
-                <label>Sexo</label>
+                <label>Sexo *</label>
                 <select data-field="sexo">
                   <option value="">Selecione</option>
                   <option value="M">Macho</option>
@@ -1543,14 +1543,14 @@
               </div>
 
               <div class="col">
-                <label>Data de nascimento</label>
+                <label>Data de nascimento *</label>
                 <input data-field="nascimento" type="date" />
               </div>
             </div>
 
             <div class="row">
               <div class="col">
-                <label>Peso (kg)</label>
+                <label>Peso (kg) *</label>
                 <input data-field="peso" type="number" step="0.1" min="0" placeholder="Ex.: 7.5" />
               </div>
 
@@ -1563,7 +1563,7 @@
               </div>
 
               <div class="col">
-                <label>Alimentação</label>
+                <label>Alimentação *</label>
                 <select data-field="alimentacao_tipo" class="alimentacao_tipo">
                   <option value="">Selecione</option>
                   <option value="ração">Ração</option>
@@ -2082,10 +2082,35 @@
           return null;
         }
 
-        if (p.nascimento && isFutureDateOnly(p.nascimento)) {
-          showStatus(`A data de nascimento do Pet ${i + 1} não pode ser maior que a data de hoje.`, false);
-          return null;
-        }
+if (!p.nascimento) {
+  showStatus(`Informe a data de nascimento do Pet ${i + 1}.`, false);
+  return null;
+}
+
+if (isFutureDateOnly(p.nascimento)) {
+  showStatus(`A data de nascimento do Pet ${i + 1} não pode ser maior que a data de hoje.`, false);
+  return null;
+}
+
+if (especieSelecionada !== "Outro" && !p.raca) {
+  showStatus(`Informe a raça do Pet ${i + 1}.`, false);
+  return null;
+}
+
+if (!p.sexo) {
+  showStatus(`Informe o sexo do Pet ${i + 1}.`, false);
+  return null;
+}
+
+if (!p.peso) {
+  showStatus(`Informe o peso do Pet ${i + 1}.`, false);
+  return null;
+}
+
+if (!p.alimentacao_tipo) {
+  showStatus(`Informe a alimentação do Pet ${i + 1}.`, false);
+  return null;
+}
 
         if (p.alergias_flag && !p.alergias_texto) {
           showStatus(`Descreva as alergias do Pet ${i + 1}.`, false);

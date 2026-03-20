@@ -1,4 +1,4 @@
-// app.js v10.26 (patched)
+// app.js v10.40 (patched)
 document.addEventListener('DOMContentLoaded', async () => {
   // Loading (tela inicial)
   const loadingEl = document.getElementById('app_loading');
@@ -558,15 +558,69 @@ function uiContractLinkModal({ title='Contrato', url='', expiresAt=null, accepte
   });
 }
 
-function getStatusTagClass(status){
+function normalizeAgendaStatus(status){
   const s = String(status || '').trim().toLowerCase();
 
-  if (s === 'agendado' || s === 'agendada') return 'tag-yellow';
-  if (s === 'checkin' || s === 'check-in' || s === 'check-in feito') return 'tag-blue';
-  if (s === 'checkout' || s === 'check-out' || s === 'check-out feito' || s === 'concluído' || s === 'concluido') return 'tag-green';
-  if (s === 'cancelado' || s === 'cancelada') return 'tag-red';
+  if (!s) return 'agendado';
+
+  if (s === 'agendado' || s === 'agendada') return 'agendado';
+
+  if (s === 'checkin' || s === 'check-in' || s === 'check-in feito') {
+    return 'checkin';
+  }
+
+  if (
+    s === 'checkout' ||
+    s === 'check-out' ||
+    s === 'check-out feito' ||
+    s === 'concluído' ||
+    s === 'concluido'
+  ) {
+    return 'checkout';
+  }
+
+  if (s === 'cancelado' || s === 'cancelada') return 'cancelado';
+
+  return s;
+}
+
+function getStatusLabel(status){
+  const s = normalizeAgendaStatus(status);
+
+  if (s === 'agendado') return 'Agendado';
+  if (s === 'checkin') return 'Check-in';
+  if (s === 'checkout') return 'Check-out';
+  if (s === 'cancelado') return 'Cancelado';
+
+  return status || 'Agendado';
+}
+
+function getStatusTagClass(status){
+  const s = normalizeAgendaStatus(status);
+
+  if (s === 'agendado') return 'tag-yellow';
+  if (s === 'checkin') return 'tag-blue';
+  if (s === 'checkout') return 'tag-green';
+  if (s === 'cancelado') return 'tag-red';
 
   return 'tag';
+}
+
+function normalizePaymentKind(kind){
+  const s = String(kind || '').trim().toLowerCase();
+
+  if (
+    s === 'hospedagem' ||
+    s === 'hosp' ||
+    s === 'hotel'
+  ) return 'hospedagem';
+
+  if (
+    s === 'creche' ||
+    s === 'daycare'
+  ) return 'creche';
+
+  return s;
 }
 
 // Helpers
@@ -2363,7 +2417,12 @@ async function renderHosp(){
       ${Input('Valor (R$)', 'h_valor', 'number', { step:'0.01', min:'0' })}
       ${TextArea('Observação', 'h_obs')}
       <div class="row">
-        ${Select('Status', 'h_status', [{value:'agendada',label:'Agendada'},{value:'checkin',label:'Check-in feito'},{value:'checkout',label:'Check-out feito'},])}
+        ${Select('Status', 'h_status', [
+  { value:'agendado', label:'Agendado' },
+  { value:'checkin',  label:'Check-in' },
+  { value:'checkout', label:'Check-out' },
+  { value:'cancelado', label:'Cancelado' },
+])}
       </div>
       <div class="space"></div>
       <div class="flex">
@@ -2688,7 +2747,7 @@ tr.innerHTML = `<td>${h.id}</td>
   </td>
 
   <td>
-    <span class="tag ${getStatusTagClass(h.status)}">${h.status || ''}</span>
+    <span class="tag ${getStatusTagClass(h.status)}">${getStatusLabel(h.status)}</span>
     ${h.nota && h.nota.trim() ? ' <span title="Tem observações">📝</span>' : ''}
   </td>
 
@@ -2782,7 +2841,7 @@ async function editHosp(id){
   document.getElementById('h_hora_in').value  = h.horaEntrada || '';
   document.getElementById('h_hora_out').value = h.horaSaida   || '';
   document.getElementById('h_valor').value    = h.valor || 0;
-  document.getElementById('h_status').value   = h.status || 'agendada';
+  document.getElementById('h_status').value = normalizeAgendaStatus(h.status);
   document.getElementById('h_obs').value      = (h.nota ?? h.observacao ?? '');
 
   // Troca o botão Salvar para atualizar
@@ -2861,7 +2920,7 @@ async function editHosp(id){
     h.horaEntrada = horaEntrada;
     h.horaSaida   = horaSaida;
     h.valor       = Number(valorStr || 0);
-    h.status      = status || 'agendada';
+    h.status      = normalizeAgendaStatus(status);
     h.observacao  = get('h_obs').value.trim();
     h.nota        = (get('h_obs').value || '').trim();
 
@@ -2912,10 +2971,11 @@ async function renderCreche(prefill = null){
       <div id="c_pets_box"></div>
       ${Select('Frequência semanal - Segunda a Domingo', 'c_freq', [{value:'1',label:'1x por semana'},{value:'2',label:'2x por semana'},{value:'3',label:'3x por semana'},{value:'4',label:'4x por semana'},{value:'5',label:'5x por semana'},{value:'6',label:'6x por semana'},{value:'7',label:'7x por semana'},{value:'ALE',label:'Aleatório'}])}
       ${Input('Valor (R$) para o período', 'c_valor', 'number', { step:'0.01', min:'0' })}
-      ${Select('Status', 'c_status', [
-    {value:'Agendado',label:'Agendado'},
-    {value:'checkin',label:'Check-in feito'},
-    {value:'checkout',label:'Check-out feito'}
+${Select('Status', 'c_status', [
+  { value:'agendado', label:'Agendado' },
+  { value:'checkin',  label:'Check-in' },
+  { value:'checkout', label:'Check-out' },
+  { value:'cancelado', label:'Cancelado' },
 ])}
       ${TextArea('Observações', 'c_obs')}
 	  <div class="row">
@@ -3221,7 +3281,7 @@ async function renderCreche(prefill = null){
       tutorId,
       petIds,
       valor: Number(valorStr || 0),
-      status: get('c_status').value || 'Agendado',
+      status: normalizeAgendaStatus(get('c_status').value),
       freq: (get('c_freq')?.value) || 'ALE',
       mesRef: ym(current),
       dias,
@@ -3400,7 +3460,7 @@ tr.innerHTML = `
 
   <td>
 <span class="tag ${getStatusTagClass(c.status)}" style="padding:2px 6px">
-  ${c.status || 'Agendado'}
+  ${getStatusLabel(c.status)}
 </span>
     ${c.nota && c.nota.trim() ? ' <span title="Tem observações">📝</span>' : ''}
   </td>
@@ -3495,7 +3555,7 @@ if (obsEl) obsEl.value = (c.nota ?? c.observacao ?? '');
 
   // 4) Dados gerais
   document.getElementById('c_valor').value = c.valor || 0;
-  document.getElementById('c_status').value = c.status || 'Agendado';
+  document.getElementById('c_status').value = normalizeAgendaStatus(c.status);
   document.getElementById('c_freq').value = c.freq || 'ALE';
 
   // 5) Horários padrão (usa moda)
@@ -4531,14 +4591,14 @@ async function buildResumoPeriodo(fromISO, toISO){
       const valor     = fmtMoney(valorBase);
 
       // Status com ícone (✔️ para checkin, ❌ para checkout/Concluído)
-      const statusRaw  = c.status || 'Agendado';
-      const statusText = statusRaw.toString();
-      const statusIcon =
-        statusText === 'checkin'
-          ? '✔️ '
-          : (statusText === 'checkout' || statusText === 'Concluído')
-            ? '❌ '
-            : '';
+const statusRaw  = normalizeAgendaStatus(c.status);
+const statusText = getStatusLabel(statusRaw);
+const statusIcon =
+  statusRaw === 'checkin'
+    ? '✔️ '
+    : (statusRaw === 'checkout')
+      ? '❌ '
+      : '';
 
       const pago     = Number(c.pago || 0);
       const faltando = Math.max(0, valorBase - pago);
@@ -5057,9 +5117,9 @@ out += `<div>${iconPrefix ? iconPrefix + ' ' : ''}${adaptBadge}<strong>${petName
           // --- BOTÕES (check-in / check-out / ajuste) ---
           let controls = '';
           const canClick = (day <= todayStr) ? '' : 'disabled';
-          const statusStr = String(r0.status || '').toLowerCase();
-          const jaCheckin = (statusStr === 'checkin');
-          const jaCheckout = (statusStr === 'checkout' || statusStr === 'concluído');
+          const statusStr = normalizeAgendaStatus(r0.status);
+const jaCheckin = (statusStr === 'checkin');
+const jaCheckout = (statusStr === 'checkout');
 
           // Check-in só no primeiro dia da agenda
           if (isFirst && !jaCheckin && (statusStr === '' || statusStr === 'agendado')) {
@@ -5078,8 +5138,8 @@ out += `<div>${iconPrefix ? iconPrefix + ' ' : ''}${adaptBadge}<strong>${petName
 
           // --- ÍCONES E PENDÊNCIA ---
           const icons = [];
-          if (r0.status === 'checkin') icons.push('✔️');
-          if (r0.status === 'checkout' || r0.status === 'Concluído') icons.push('❌');
+if (statusStr === 'checkin') icons.push('✔️');
+if (statusStr === 'checkout') icons.push('❌');
           if (r0.pendente === true) icons.push('⚠️');
 
           const iconPrefix = icons.join('');
@@ -5114,7 +5174,6 @@ out += `<div>${iconPrefix ? iconPrefix+' ' : ''}<strong>${petNames}</strong>${no
   await paintWeek();
 }
 
-
 async function abrirPagamento(tipo, kind, refId){
   // 1) Pergunta quanto FOI RECEBIDO AGORA, em reais
   let valorStr = prompt(`Valor recebido AGORA no ${tipo} (R$):`, '0');
@@ -5122,24 +5181,39 @@ async function abrirPagamento(tipo, kind, refId){
 
   // Aceita vírgula ou ponto
   valorStr = String(valorStr).replace(',', '.').trim();
-  const valorPagoAgora = Number(valorStr);
+  const valorDigitado = Number(valorStr);
 
-  if (isNaN(valorPagoAgora) || valorPagoAgora < 0) {
+  if (isNaN(valorDigitado) || valorDigitado < 0) {
     toast('Informe um valor numérico válido (0 ou mais)', false);
     return;
   }
 
+  kind = normalizePaymentKind(kind);
   const coll = (kind === 'hospedagem') ? 'hospedagens' : 'creches';
   const rec = await DB.get(coll, refId);
+
   if (!rec) {
     toast('Registro não encontrado', false);
     return;
   }
 
+  // Guarda o estado anterior para rollback, se necessário
+  const estadoAnterior = {
+    pago: Number(rec.pago || 0),
+    pendente: !!rec.pendente,
+    status: rec.status || ''
+  };
+
   // 2) Calcula total pago com esse recebimento
-  const valorBase  = Number(rec.valorTotal || rec.valor || 0);
-  const pagoAtual  = Number(rec.pago || 0);
-  const novoTotalPago = Math.min(valorBase, pagoAtual + valorPagoAgora);
+  const valorBase = Number(rec.valorTotal || rec.valor || 0);
+  const restanteAntes = Math.max(0, valorBase - estadoAnterior.pago);
+  const valorAproveitado = Math.min(restanteAntes, valorDigitado);
+  const novoTotalPago = estadoAnterior.pago + valorAproveitado;
+
+  if (valorAproveitado <= 0) {
+    toast('Este serviço já está totalmente quitado. Nenhum novo pagamento foi lançado.', false);
+    return;
+  }
 
   rec.pago = novoTotalPago;
 
@@ -5147,76 +5221,85 @@ async function abrirPagamento(tipo, kind, refId){
   rec.pendente = faltando > 0;
 
   // 3) Atualiza status (checkin / checkout)
-  const statusAtual = String(rec.status || '').toLowerCase();
+  const statusAtual = normalizeAgendaStatus(rec.status);
 
   if (tipo === 'checkin') {
-    // Qualquer coisa que NÃO seja 'checkout' vira 'checkin'
     if (statusAtual !== 'checkout') {
       rec.status = 'checkin';
     }
   } else {
-    // No checkout sempre marcamos como 'checkout'
     rec.status = 'checkout';
   }
 
-
+  // 4) Salva o registro principal
   await DB.put(coll, rec);
 
-  // 4) Atualiza/Cria 1 linha consolidada em PAGAMENTOS (sempre com o TOTAL pago)
-  const todosPag = await DB.list('pagamentos');
-  let pay = todosPag.find(p => p.refKind === kind && p.refId === refId);
-
+  // 5) Tenta gravar a linha em pagamentos
   const hoje = new Date().toISOString().slice(0, 10);
-try {
-  if (!pay) {
-    pay = {
-      refKind:   kind,
-      refId:     refId,
-      valor:     novoTotalPago,
-      metodo:    (tipo === 'checkin' ? 'checkin' : 'checkout'),
-      data:      hoje,
-    };
-    await DB.add('pagamentos', pay);
-  } else {
-    pay.valor      = novoTotalPago;
-    pay.metodo     = (tipo === 'checkin' ? 'checkin' : 'checkout');
-    pay.data       = hoje;
-    await DB.put('pagamentos', pay);
-  }
-  } catch (e) {
-  console.error('ERRO salvando pagamentos:', e);
-  toast('Salvou o check-in/out, mas falhou salvar em Pagamentos (ver console).', false);
-}
 
-  // 5) Log bonitinho
+  try {
+    await DB.add('pagamentos', {
+      refKind: kind,
+      refId: refId,
+      valor: valorAproveitado,
+      metodo: (tipo === 'checkin' ? 'checkin' : 'checkout'),
+      data: hoje
+    });
+  } catch (e) {
+    console.error('ERRO salvando pagamentos:', e);
+
+    // Rollback: volta o registro principal ao estado anterior
+    try {
+      rec.pago = estadoAnterior.pago;
+      rec.pendente = estadoAnterior.pendente;
+      rec.status = estadoAnterior.status;
+      await DB.put(coll, rec);
+      toast('Falhou salvar em Pagamentos. O sistema desfez a alteração para evitar divergência.', false);
+    } catch (rollbackError) {
+      console.error('ERRO no rollback do pagamento:', rollbackError);
+      toast('Falhou salvar em Pagamentos e também falhou desfazer a alteração. Verifique o console.', false);
+    }
+
+    return;
+  }
+
+  // 6) Log
   await DB.add('logs', {
     at: new Date().toISOString(),
     action: `${tipo}_payment`,
     entity: coll.slice(0, -1),
     entityId: refId,
-    note: `${kind} #${refId} — recebido agora ${fmtMoney(valorPagoAgora)} — total pago ${fmtMoney(novoTotalPago)}`
+    note: `${kind} #${refId} — digitado ${fmtMoney(valorDigitado)} — aproveitado ${fmtMoney(valorAproveitado)} — total pago ${fmtMoney(novoTotalPago)}`
   });
 
-toast(`${tipo === 'checkin' ? 'Check-in' : 'Check-out'} registrado`);
+  if (valorDigitado > valorAproveitado) {
+    toast(`Pagamento registrado. Do valor informado, apenas ${fmtMoney(valorAproveitado)} foi aproveitado porque o restante já estava quitado.`);
+  } else {
+    toast(`${tipo === 'checkin' ? 'Check-in' : 'Check-out'} registrado`);
+  }
 
-console.error('DEBUG A: salvar terminou, status que eu acabei de setar =', rec.status, 'coll=', coll, 'id=', rec.id);
+  console.error('DEBUG A: salvar terminou, status que eu acabei de setar =', rec.status, 'coll=', coll, 'id=', rec.id);
 
-// confirmação no banco (pega direto por id)
-const fresh = await DB.get(coll, refId);
-console.error('DEBUG B: status vindo do DB.get logo após salvar =', fresh && fresh.status);
+  const fresh = await DB.get(coll, refId);
+  console.error('DEBUG B: status vindo do DB.get logo após salvar =', fresh && fresh.status);
 
-// dá um micro tempo pro Supabase refletir (muito raro, mas elimina 100% dúvida)
-await new Promise(r => setTimeout(r, 200));
+  await new Promise(r => setTimeout(r, 200));
 
-console.error('DEBUG C: chamando refresh... window.__refreshCheckin =', typeof window.__refreshCheckin);
+  console.error('DEBUG C: chamando refresh... window.__refreshCheckin =', typeof window.__refreshCheckin);
 
-if (typeof window.__refreshCheckin === 'function') {
-  await window.__refreshCheckin();
-  console.error('DEBUG D: refresh finalizou');
-} else {
-  await renderCheckin();
-  console.error('DEBUG D: renderCheckin finalizou');
-}
+  if (typeof window.__refreshCheckin === 'function') {
+    await window.__refreshCheckin();
+    console.error('DEBUG D: refresh finalizou');
+  } else {
+    await renderCheckin();
+    console.error('DEBUG D: renderCheckin finalizou');
+  }
+
+  if (document.getElementById('pay_tbody_hosp') || document.getElementById('pay_tbody_creche')) {
+    const ini = document.getElementById('pay_inicio')?.value || null;
+    const fim = document.getElementById('pay_fim')?.value || null;
+    await loadPagamentos(ini, fim, false);
+  }
 }
 
 async function ajustarPagamento(kind, refId){
@@ -5226,54 +5309,55 @@ async function ajustarPagamento(kind, refId){
 
   valorStr = String(valorStr).replace(',', '.').trim();
   let novoTotalPago = Number(valorStr);
+
   if (isNaN(novoTotalPago) || novoTotalPago < 0) {
     toast('Informe um valor numérico válido (0 ou mais)', false);
     return;
   }
 
+  kind = normalizePaymentKind(kind);
   const coll = (kind === 'hospedagem') ? 'hospedagens' : 'creches';
   const rec = await DB.get(coll, refId);
+
   if (!rec) {
     toast('Registro não encontrado', false);
     return;
   }
 
   const valorBase = Number(rec.valorTotal || rec.valor || 0);
+  const pagoAtual = Number(rec.pago || 0);
+
   // Nunca deixa passar do valor total da reserva
   novoTotalPago = Math.min(valorBase, novoTotalPago);
 
+  // Diferença real do ajuste
+  const diferencaAjuste = Number((novoTotalPago - pagoAtual).toFixed(2));
+
   // 2) Atualiza o registro principal
   rec.pago = novoTotalPago;
+
   const faltando = Math.max(0, valorBase - novoTotalPago);
   rec.pendente = faltando > 0;
 
-  // Não mexe no status (checkin/checkout/Concluído)
+  // Não mexe no status (checkin/checkout)
   await DB.put(coll, rec);
 
-  // 3) Atualiza/Cria 1 linha consolidada em PAGAMENTOS
-  const todosPag = await DB.list('pagamentos');
-  let pay = todosPag.find(p => p.refKind === kind && p.refId === refId);
-
+  // 3) Grava 1 nova linha em PAGAMENTOS somente se houve diferença
   const hoje = new Date().toISOString().slice(0, 10);
-  try {
-  if (!pay) {
-    pay = {
-      refKind:   kind,
-      refId:     refId,
-      valor:     novoTotalPago,
-      metodo:    'ajuste',
-      data:      hoje,
-    };
-    await DB.add('pagamentos', pay);
-  } else {
-    pay.valor      = novoTotalPago;
-    pay.metodo     = 'ajuste';
-    pay.data       = hoje;
-    await DB.put('pagamentos', pay);
-	}
-	} catch (e) {
-  console.error('ERRO salvando pagamentos (ajuste):', e);
-  toast('Ajuste aplicado, mas falhou salvar em Pagamentos (ver console).', false);
+
+  if (diferencaAjuste !== 0) {
+    try {
+      await DB.add('pagamentos', {
+        refKind: kind,
+        refId: refId,
+        valor: diferencaAjuste,
+        metodo: 'ajuste',
+        data: hoje
+      });
+    } catch (e) {
+      console.error('ERRO salvando pagamentos (ajuste):', e);
+      toast('Ajuste aplicado, mas falhou salvar em Pagamentos (ver console).', false);
+    }
   }
 
   // 4) Log
@@ -5282,17 +5366,27 @@ async function ajustarPagamento(kind, refId){
     action: 'ajuste_pagamento',
     entity: coll.slice(0, -1),
     entityId: refId,
-    note: `${kind} #${refId} — ajuste para total pago ${fmtMoney(novoTotalPago)}`
+    note: `${kind} #${refId} — pago antes ${fmtMoney(pagoAtual)} — novo total ${fmtMoney(novoTotalPago)} — ajuste ${fmtMoney(diferencaAjuste)}`
   });
 
-toast('Pagamento ajustado');
+  if (diferencaAjuste === 0) {
+    toast('Pagamento já estava com esse mesmo total');
+  } else {
+    toast('Pagamento ajustado');
+  }
 
-// ✅ Atualiza a tela na hora (sem F5)
-if (typeof window.__refreshCheckin === 'function') {
-  await window.__refreshCheckin();
-} else {
-  await renderCheckin();
-}
+  // Atualiza a tela na hora
+  if (typeof window.__refreshCheckin === 'function') {
+    await window.__refreshCheckin();
+  } else {
+    await renderCheckin();
+  }
+
+  if (document.getElementById('pay_tbody_hosp') || document.getElementById('pay_tbody_creche')) {
+    const ini = document.getElementById('pay_inicio')?.value || null;
+    const fim = document.getElementById('pay_fim')?.value || null;
+    await loadPagamentos(ini, fim, false);
+  }
 }
 
 
@@ -5329,14 +5423,13 @@ async function renderPagamentos(){
     <div class="list-scroll">
       <table>
         <thead>
-          <tr>
-            <th>Data</th>
-            <th>Ref (Tutor — Pets)</th>
-            <th>Valor total</th>
-            <th>Pago</th>
-            <th>Faltando</th>
-            <th>Situação</th>
-          </tr>
+<tr>
+  <th>Data</th>
+  <th>Ref (Tutor — Pets)</th>
+  <th>Lançamento</th>
+  <th>Método</th>
+  <th>Situação atual</th>
+</tr>
         </thead>
         <tbody id="pay_tbody_hosp"></tbody>
       </table>
@@ -5348,14 +5441,13 @@ async function renderPagamentos(){
     <div class="list-scroll">
       <table>
         <thead>
-          <tr>
-            <th>Data</th>
-            <th>Ref (Tutor — Pets)</th>
-            <th>Valor total</th>
-            <th>Pago</th>
-            <th>Faltando</th>
-            <th>Situação</th>
-          </tr>
+<tr>
+  <th>Data</th>
+  <th>Ref (Tutor — Pets)</th>
+  <th>Lançamento</th>
+  <th>Método</th>
+  <th>Situação atual</th>
+</tr>
         </thead>
         <tbody id="pay_tbody_creche"></tbody>
       </table>
@@ -5424,30 +5516,17 @@ async function loadPagamentos(inicio = null, fim = null, resetInputs = false){
 
   const list = await DB.list('pagamentos');
 
-  // Agrupa por refKind + refId (uma linha por hospedagem/creche – já estava assim)
-  const grouped = {};
-  for (const p of list) {
-    const key = `${p.refKind || ''}|${p.refId || ''}`;
-    const existing = grouped[key];
-    if (!existing) {
-      grouped[key] = p;
-    } else {
-      const dNew = String(p.data || '');
-      const dOld = String(existing.data || '');
-      if (dNew > dOld || (dNew === dOld && (p.id || 0) > (existing.id || 0))) {
-        grouped[key] = p;
-      }
-    }
-  }
-
-// ====== Agora sim: cria "items" a partir do grouped e filtra por período ======
-const items = Object.values(grouped)
-  .filter(p => {
-    const d = String(p.data || '');
-    return d >= dataIni && d <= dataFim;
-  })
-  .sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')) || ((b.id || 0) - (a.id || 0)));
-
+  // Agora a tela mostra 1 linha por lançamento real
+  const items = list
+    .filter(p => {
+      const d = String(p.data || '');
+      return d >= dataIni && d <= dataFim;
+    })
+    .sort((a, b) =>
+      String(b.data || '').localeCompare(String(a.data || '')) ||
+      ((b.id || 0) - (a.id || 0))
+    );
+	
 // Se não tiver nada no período, já mostra totais zerados e sai
 if (!items.length) {
   if (elTotHosp) elTotHosp.textContent = fmtMoney(0);
@@ -5456,7 +5535,7 @@ if (!items.length) {
   return;
 }
 
-// Clientes e pets pode continuar pegando "tudo" (normalmente é bem leve)
+// Clientes e pets continua carregando normal
 const [clientes, pets] = await Promise.all([
   DB.list('clientes'),
   DB.list('pets'),
@@ -5465,31 +5544,16 @@ const [clientes, pets] = await Promise.all([
 const byCli = Object.fromEntries(clientes.map(c => [c.id, c]));
 const byPet = Object.fromEntries(pets.map(p => [p.id, p]));
 
-// Pega apenas as hospedagens/creches necessárias (por ID), COM BASE EM "items"
-const hospIds = [...new Set(
-  items.filter(p => (p.refKind || '') === 'hospedagem').map(p => Number(p.refId || 0)).filter(Boolean)
-)];
-const crecheIds = [...new Set(
-  items.filter(p => (p.refKind || '') === 'creche').map(p => Number(p.refId || 0)).filter(Boolean)
-)];
-
-// Busca em lote (bem mais leve do que DB.list de tudo)
-const [hospedagensNeed, crechesNeed] = await Promise.all([
-  hospIds.length ? DB.getMany('hospedagens', hospIds) : Promise.resolve([]),
-  crecheIds.length ? DB.getMany('creches', crecheIds) : Promise.resolve([]),
-]);
-
-const byHosp = Object.fromEntries(hospedagensNeed.map(h => [h.id, h]));
-const byCre  = Object.fromEntries(crechesNeed.map(c => [c.id, c]));
-
   let totHosp = 0;
   let totCre = 0;
 
-  for (const p of items) {
-    const isHosp = (p.refKind === 'hospedagem');
-    const rid = Number(p.refId || 0);
-const rec = isHosp ? byHosp[rid] : byCre[rid];
-    if (!rec) continue;
+for (const p of items) {
+  const kindNorm = normalizePaymentKind(p.refKind);
+  const isHosp = (kindNorm === 'hospedagem');
+  const rid = Number(p.refId || 0);
+
+  const rec = await DB.get(isHosp ? 'hospedagens' : 'creches', rid);
+  if (!rec) continue;
 
     const tutor = byCli[rec.tutorId]?.nome || (`Tutor #${rec.tutorId}`);
     const petNames = (rec.petIds || []).map(
@@ -5498,32 +5562,36 @@ const rec = isHosp ? byHosp[rid] : byCre[rid];
     const refName = `${tutor} — ${petNames}`;
 
     const valorBase = Number(rec.valorTotal || rec.valor || 0);
-    const pago = Number(rec.pago || p.valor || 0);
-    const faltando = Math.max(0, valorBase - pago);
+    const valorLancado = Number(p.valor || 0);
+    const pagoAtual = Number(rec.pago || 0);
+    const faltandoAtual = Math.max(0, valorBase - pagoAtual);
 
     const icons = [];
-    if (rec.status === 'checkin') icons.push('✔️');
-    if (rec.status === 'checkout' || rec.status === 'Concluído') icons.push('❌');
-    if (rec.pendente) icons.push('⚠️');
+    const recStatus = normalizeAgendaStatus(rec.status);
+    const metodoTxt = String(p.metodo || '—');
 
-    const situacao = `${icons.join(' ')} ${faltando > 0 ? 'Pendente' : 'Pago'}`.trim();
+    if (recStatus === 'checkin') icons.push('✔️');
+    if (recStatus === 'checkout') icons.push('❌');
+    if (rec.pendente || faltandoAtual > 0) icons.push('⚠️');
+    if (String(p.metodo || '').toLowerCase() === 'ajuste') icons.push('🛠️');
+
+    const situacao = `${icons.join(' ')} ${faltandoAtual > 0 ? 'Pendente' : 'Pago'}`.trim();
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${fmtBR(p.data || '')}</td>
       <td>${refName}</td>
-      <td>${fmtMoney(valorBase)}</td>
-      <td>${fmtMoney(pago)}</td>
-      <td>${faltando > 0 ? fmtMoney(faltando) : '—'}</td>
+      <td>${fmtMoney(valorLancado)}</td>
+      <td>${metodoTxt}</td>
       <td>${situacao}</td>
     `;
 
     if (isHosp) {
       tbodyHosp.appendChild(tr);
-      totHosp += pago;
+      totHosp += valorLancado;
     } else {
       tbodyCre.appendChild(tr);
-      totCre += pago;
+      totCre += valorLancado;
     }
   }
 
@@ -5532,14 +5600,106 @@ const rec = isHosp ? byHosp[rid] : byCre[rid];
   if (elTotGeral) elTotGeral.textContent = fmtMoney(totHosp + totCre);
 }
 
-
 async function receberPagamento(kind, refId){
-  const valorStr = prompt('Valor recebido (R$):', '0'); if (valorStr==null) return;
-  const metodo = prompt('Método (dinheiro, pix, cartão):', 'pix')||'pix';
-  const valor = Number(valorStr||0);
-  const payId = await DB.add('pagamentos', { refKind:kind, refId, valor, metodo, data:new Date().toISOString().slice(0,10) });
-  await DB.add('logs', { at:new Date().toISOString(), action:'payment', entity:'pagamento', entityId:payId, note:`${kind} #${refId} — ${fmtMoney(valor)} (${metodo})` });
-  toast('Pagamento registrado'); renderPagamentos();
+  let valorStr = prompt('Valor recebido (R$):', '0');
+  if (valorStr === null) return;
+
+  const metodo = (prompt('Método (dinheiro, pix, cartão):', 'pix') || 'pix').trim();
+
+  valorStr = String(valorStr).replace(',', '.').trim();
+  const valorDigitado = Number(valorStr);
+
+  if (isNaN(valorDigitado) || valorDigitado < 0) {
+    toast('Informe um valor numérico válido (0 ou mais)', false);
+    return;
+  }
+
+  kind = normalizePaymentKind(kind);
+  const coll = (kind === 'hospedagem') ? 'hospedagens' : 'creches';
+  const rec = await DB.get(coll, refId);
+
+  if (!rec) {
+    toast('Registro não encontrado', false);
+    return;
+  }
+
+  const estadoAnterior = {
+    pago: Number(rec.pago || 0),
+    pendente: !!rec.pendente,
+    status: rec.status || ''
+  };
+
+  const valorBase = Number(rec.valorTotal || rec.valor || 0);
+  const restanteAntes = Math.max(0, valorBase - estadoAnterior.pago);
+  const valorAproveitado = Math.min(restanteAntes, valorDigitado);
+  const novoTotalPago = estadoAnterior.pago + valorAproveitado;
+
+  if (valorAproveitado <= 0) {
+    toast('Este serviço já está totalmente quitado. Nenhum novo pagamento foi lançado.', false);
+    return;
+  }
+
+  rec.pago = novoTotalPago;
+
+  const faltando = Math.max(0, valorBase - novoTotalPago);
+  rec.pendente = faltando > 0;
+
+  await DB.put(coll, rec);
+
+  const hoje = new Date().toISOString().slice(0, 10);
+
+  let payId = null;
+
+  try {
+    payId = await DB.add('pagamentos', {
+      refKind: kind,
+      refId,
+      valor: valorAproveitado,
+      metodo,
+      data: hoje
+    });
+  } catch (e) {
+    console.error('ERRO salvando em pagamentos:', e);
+
+    try {
+      rec.pago = estadoAnterior.pago;
+      rec.pendente = estadoAnterior.pendente;
+      rec.status = estadoAnterior.status;
+      await DB.put(coll, rec);
+      toast('Falhou salvar em Pagamentos. O sistema desfez a alteração para evitar divergência.', false);
+    } catch (rollbackError) {
+      console.error('ERRO no rollback do receberPagamento:', rollbackError);
+      toast('Falhou salvar em Pagamentos e também falhou desfazer a alteração. Verifique o console.', false);
+    }
+
+    return;
+  }
+
+  await DB.add('logs', {
+    at: new Date().toISOString(),
+    action: 'payment',
+    entity: 'pagamento',
+    entityId: payId,
+    note: `${kind} #${refId} — digitado ${fmtMoney(valorDigitado)} (${metodo}) — aproveitado ${fmtMoney(valorAproveitado)} — total pago ${fmtMoney(novoTotalPago)}`
+  });
+
+  if (valorDigitado > valorAproveitado) {
+    toast(`Pagamento registrado. Do valor informado, apenas ${fmtMoney(valorAproveitado)} foi aproveitado porque o restante já estava quitado.`);
+  } else {
+    toast('Pagamento registrado');
+  }
+
+  if (typeof window.__refreshCheckin === 'function') {
+    await window.__refreshCheckin();
+  } else {
+    await renderCheckin();
+  }
+
+  if (document.getElementById('pay_tbody_hosp') || document.getElementById('pay_tbody_creche')) {
+    const ini = document.getElementById('pay_inicio')?.value || null;
+    const fim = document.getElementById('pay_fim')?.value || null;
+    await loadPagamentos(ini, fim, false);
+  }
 }
 
 // ==== PRÉ-CADASTROS ====
@@ -6609,15 +6769,35 @@ const ok = await uiConfirm(
       });
     }
 
-    for (const p of petsDoPre){
-      const petData = {
-        tutorId: Number(tutorId),
-        nome: (p.nome || '').trim(),
-        especie: (p.especie || '').trim(),
-        raca: (p.raca || '').trim(),
-        sexo: (p.sexo || '').trim(),
-        nascimento: p.nascimento || '',
-        castrado: !!p.castrado,
+for (const p of petsDoPre){
+
+const nascimentoRaw = (p.nascimento ?? '').toString().trim();
+
+// Data de nascimento obrigatória
+if (!nascimentoRaw) {
+  await uiAlert(
+    `O pet "${p.nome || 'sem nome'}" precisa ter a data de nascimento preenchida antes da aprovação.`,
+    'Não foi possível aprovar'
+  );
+  throw new Error(`Pet sem data de nascimento: ${p.nome || 'sem nome'}`);
+}
+
+let nascimentoFmt = nascimentoRaw;
+
+  // Se vier em dd/mm/aaaa, converte para aaaa-mm-dd
+  const mNascimento = nascimentoRaw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (mNascimento) {
+    nascimentoFmt = `${mNascimento[3]}-${mNascimento[2]}-${mNascimento[1]}`;
+  }
+
+  const petData = {
+    tutorId: Number(tutorId),
+    nome: (p.nome || '').trim(),
+    especie: (p.especie || '').trim(),
+    raca: (p.raca || '').trim(),
+    sexo: (p.sexo || '').trim(),
+    nascimento: nascimentoFmt,
+    castrado: !!p.castrado,
 
         doencasFlag: !!(p.doencas_flag ?? p.doencasFlag),
         doencasTexto: (p.doencas_texto ?? p.doencasTexto ?? '').trim(),
