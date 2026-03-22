@@ -1,4 +1,4 @@
-<!-- cadastro.html v3.18 (patched) -->
+<!-- cadastro.html v3.20 (patched) -->
 <!doctype html>
 <html lang="pt-br">
 <head>
@@ -992,24 +992,31 @@
         return {
           key: "Gato",
           panelTitle: "Vacinas e proteção felina",
-          panelNote: "Para gatos, informe a vacinação felina, antirrábica e a proteção preventiva em dia.",
-          viralCardTitle: "Vacina múltipla felina",
-          viralAskLabel: "Vacina felina (V3, V4 ou V5) tomou?",
-          viralDateLabel: "Tipo / Mês / Ano da vacina felina",
-          viralOptions: `
-            <option value="">Tipo</option>
-            <option value="V3">V3</option>
-            <option value="V4">V4</option>
-            <option value="V5">V5</option>
-          `,
-          viralResumoLabel: "Vacina felina",
-          viralBadgeLabel: "Vacina felina",
+panelNote: "Para gatos, informe a vacina felina principal, a vacina antirrábica / raiva e a proteção preventiva em dia.",
+viralCardTitle: "Vacina felina principal",
+viralAskLabel: "Vacina felina principal tomou?",
+viralDateLabel: "Tipo / Mês / Ano da vacina felina principal",
+viralOptions: `
+  <option value="">Tipo</option>
+  <option value="V3">V3</option>
+  <option value="Tríplice felina">Tríplice felina</option>
+  <option value="FVRCP">FVRCP</option>
+  <option value="V4">V4</option>
+  <option value="Quádrupla felina">Quádrupla felina</option>
+  <option value="FVRCP + Chlamydia">FVRCP + Chlamydia</option>
+  <option value="V5">V5</option>
+  <option value="Quíntupla felina">Quíntupla felina</option>
+  <option value="FeLV">FeLV</option>
+  <option value="Outro / não sei informar">Outro / não sei informar</option>
+`,
+viralResumoLabel: "Vacina felina principal",
+viralBadgeLabel: "Vacina felina",
 
-          antiRabicaCardTitle: "Vacina antirrábica",
-          antiRabicaAskLabel: "Antirrábica tomou?",
-          antiRabicaDateLabel: "Mês / Ano da antirrábica",
-          antiRabicaResumoLabel: "Antirrábica",
-          antiRabicaBadgeLabel: "Antirrábica",
+antiRabicaCardTitle: "Vacina antirrábica / raiva",
+antiRabicaAskLabel: "Vacina antirrábica / raiva tomou?",
+antiRabicaDateLabel: "Mês / Ano da vacina antirrábica / raiva",
+antiRabicaResumoLabel: "Antirrábica / raiva",
+antiRabicaBadgeLabel: "Raiva",
 
           antipulgaCardTitle: "Antipulga",
           antipulgaAskLabel: "Antipulga em dia?",
@@ -1068,21 +1075,25 @@
       return {
         key: "Cachorro",
         panelTitle: "Vacinas e proteção",
-        panelNote: "Para cães, informe a vacinação principal, antirrábica e a proteção antipulga / carrapato.",
-        viralCardTitle: "Vacina viral",
-        viralAskLabel: "Vacina viral (V8 ou V10) tomou?",
-        viralDateLabel: "Tipo / Mês / Ano da vacina viral",
-        viralOptions: `
-          <option value="">Tipo</option>
-          <option value="V8">V8</option>
-          <option value="V10">V10</option>
-        `,
-        viralResumoLabel: "Vacina viral",
-        viralBadgeLabel: "Vacina viral",
-
-        antiRabicaCardTitle: "Vacina antirrábica",
-        antiRabicaAskLabel: "Antirrábica tomou?",
-        antiRabicaDateLabel: "Mês / Ano da antirrábica",
+panelNote: "Para cães, informe a vacina múltipla / principal, a vacina antirrábica (raiva) e a proteção antipulga / carrapato.",
+viralCardTitle: "Vacina múltipla / principal",
+viralAskLabel: "Vacina múltipla / principal tomou?",
+viralDateLabel: "Tipo / Mês / Ano da vacina múltipla / principal",
+viralOptions: `
+  <option value="">Selecione</option>
+  <option value="V8">V8</option>
+  <option value="V10">V10</option>
+  <option value="DHPP">DHPP</option>
+  <option value="DHPPi">DHPPi</option>
+  <option value="DHPPi+L">DHPPi+L</option>
+  <option value="DHPPL">DHPPL</option>
+  <option value="Outro / não sei informar">Outro / não sei informar</option>
+`,
+viralResumoLabel: "Vacina múltipla / principal",
+viralBadgeLabel: "Vacina múltipla",
+antiRabicaCardTitle: "Vacina antirrábica / raiva",
+antiRabicaAskLabel: "Vacina antirrábica / raiva tomou?",
+antiRabicaDateLabel: "Mês / Ano da vacina antirrábica / raiva",
         antiRabicaResumoLabel: "Antirrábica",
         antiRabicaBadgeLabel: "Antirrábica",
 
@@ -1616,11 +1627,11 @@
             <div class="soft-note" data-role="vacina-panel-note">Para cães, informe a vacinação principal, antirrábica e a proteção antipulga / carrapato.</div>
 
             <div class="vacina-card">
-              <div class="vacina-card-title" data-role="viral-card-title">Vacina viral</div>
+              <div class="vacina-card-title" data-role="viral-card-title">Vacina múltipla / principal</div>
 
               <div class="row">
                 <div class="col">
-                  <label data-role="viral-ask-label">Vacina viral (V8 ou V10) tomou?</label>
+                  <label data-role="viral-ask-label">Vacina múltipla / principal tomou?</label>
                   <select data-field="vacina_viral" class="vacina-toggle" data-vacina="viral">
                     <option value="false">Não</option>
                     <option value="true">Sim</option>
@@ -1628,14 +1639,19 @@
                 </div>
 
                 <div class="col vacina-date-wrap hidden" data-vacina-wrap="viral">
-                  <label data-role="viral-date-label">Tipo / Mês / Ano da vacina viral</label>
+                  <label data-role="viral-date-label">Tipo / Mês / Ano da vacina múltipla / principal</label>
                   <div class="row">
                     <div class="col">
-                      <select data-field="vacina_viral_tipo">
-                        <option value="">Tipo</option>
-                        <option value="V8">V8</option>
-                        <option value="V10">V10</option>
-                      </select>
+<select data-field="vacina_viral_tipo">
+  <option value="">Selecione</option>
+  <option value="V8">V8</option>
+  <option value="V10">V10</option>
+  <option value="DHPP">DHPP</option>
+  <option value="DHPPi">DHPPi</option>
+  <option value="DHPPi+L">DHPPi+L</option>
+  <option value="DHPPL">DHPPL</option>
+  <option value="Outro / não sei informar">Outro / não sei informar</option>
+</select>
                     </div>
                     <div class="col">
                       <select data-field="vacina_viral_mes">
@@ -1653,11 +1669,11 @@
             </div>
 
             <div class="vacina-card">
-              <div class="vacina-card-title" data-role="antirrabica-card-title">Vacina antirrábica</div>
+              <div class="vacina-card-title" data-role="antirrabica-card-title">Vacina antirrábica / raiva</div>
 
               <div class="row">
                 <div class="col">
-                  <label data-role="antirrabica-ask-label">Antirrábica tomou?</label>
+                  <label data-role="antirrabica-ask-label">Vacina antirrábica / raiva tomou?</label>
                   <select data-field="vacina_antirrabica" class="vacina-toggle" data-vacina="antirrabica">
                     <option value="false">Não</option>
                     <option value="true">Sim</option>
@@ -1665,7 +1681,7 @@
                 </div>
 
                 <div class="col vacina-date-wrap hidden" data-vacina-wrap="antirrabica">
-                  <label data-role="antirrabica-date-label">Mês / Ano da antirrábica</label>
+                  <label data-role="antirrabica-date-label">Mês / Ano da vacina antirrábica / raiva</label>
                   <div class="row">
                     <div class="col">
                       <select data-field="vacina_antirrabica_mes">

@@ -1,4 +1,4 @@
-// app.js v10.40 (patched)
+// app.js v10.47 (patched)
 document.addEventListener('DOMContentLoaded', async () => {
   // Loading (tela inicial)
   const loadingEl = document.getElementById('app_loading');
@@ -197,38 +197,55 @@ async function showContractLink(kind, refId, opts = {}){
 
   const title = justCreated ? 'Contrato gerado ✅' : 'Contrato';
 
+let observacao = '';
+
+try {
+if (kind === 'hospedagem') {
+  const hosp = await DB.get('hospedagens', refId);
+  observacao = hosp?.observacao || hosp?.nota || '';
+} else if (kind === 'creche') {
+  const cre = await DB.get('creches', refId);
+  observacao = cre?.observacao || cre?.nota || '';
+}
+} catch(e) {
+  observacao = '';
+}
+
   // Se a telinha existir, usa ela
   if (typeof uiContractLinkModal === 'function'){
-    await uiContractLinkModal({
-      title,
-      url: out.url,
-      expiresAt: out.expiresAt,
-      accepted: out.accepted
-    });
+await uiContractLinkModal({
+  title,
+  kind,
+  observacao,
+  url: out.url,
+  expiresAt: out.expiresAt,
+  accepted: out.accepted
+});
     return;
   }
 
   // fallback: uiConfirm (texto puro)
   const expTxt = out.expiresAt ? new Date(out.expiresAt).toLocaleString() : '(sem data)';
-  const msg =
+const msg =
 `Link do contrato:
 ${out.url}
 
 Expira em: ${expTxt}
 
-Deseja copiar o link agora?`;
+Deseja copiar a mensagem completa para enviar ao cliente agora?`;
 
   let ok = false;
   if (typeof uiConfirm === "function") {
-    ok = await uiConfirm(msg, title, { okText: "Copiar link", cancelText: "Fechar" });
+    ok = await uiConfirm(msg, title, { okText: "Copiar mensagem", cancelText: "Fechar" });
   } else {
-    ok = window.confirm(msg + "\n\nClique em OK para copiar o link.");
+    ok = window.confirm(msg + "\n\nClique em OK para copiar a mensagem.");
   }
 
-  if (ok) {
-    try { await navigator.clipboard.writeText(out.url); } catch(e) {}
-    toast("Link copiado!");
-  }
+if (ok) {
+  const msgWhatsapp = buildContractWhatsappMessage(kind, out.url, observacao);
+  try { await navigator.clipboard.writeText(msgWhatsapp); } catch(e) {}
+  toast("Mensagem copiada!");
+}
 }
 
 // ================================
@@ -441,7 +458,62 @@ function uiContractExpiryText(expiresAt){
   return `Expirado há ${Math.abs(diffDias)} dias (${dataBR})`;
 }
 
-function uiContractLinkModal({ title='Contrato', url='', expiresAt=null, accepted=false } = {}){
+function normalizeContractKind(kind){
+  return String(kind || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function isAdaptacaoByObs(obs){
+  const s = String(obs || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  return s.includes('adaptacao');
+}
+
+function buildContractWhatsappMessage(kind, url, observacao=''){
+  const k = normalizeContractKind(kind);
+  const isAdaptacao = isAdaptacaoByObs(observacao);
+
+  if (k === 'creche') {
+    return `Perfeito! Já finalizei o cadastro e a reserva da creche do pet 🐾
+
+Agora é só acessar o link abaixo para revisar e assinar o contrato digital:
+
+${url}
+
+Assim que o contrato for assinado, a vaga estará confirmada.
+O link fica disponível por até 7 dias.`;
+  }
+
+  if (k === 'adaptacao' || isAdaptacao) {
+    return `Perfeito! Já finalizei o cadastro e a reserva da adaptação do pet 🐾
+
+Agora é só acessar o link abaixo para revisar e assinar o contrato digital:
+
+${url}
+
+Assim que o contrato for assinado, a adaptação estará confirmada.
+O link fica disponível por até 7 dias.`;
+  }
+
+  // padrão: hospedagem
+  return `Perfeito! Já finalizei o cadastro e a reserva da hospedagem do pet 🐾🏡
+
+Agora é só acessar o link abaixo para revisar e assinar o contrato digital:
+
+${url}
+
+Assim que o contrato for assinado, a hospedagem estará confirmada.
+O link fica disponível por até 7 dias.`;
+}
+
+function uiContractLinkModal({ title='Contrato', kind='hospedagem', observacao='', url='', expiresAt=null, accepted=false } = {}){
   return new Promise((resolve) => {
     // remove modal anterior se existir
     const old = document.getElementById('contract_modal');
@@ -485,28 +557,30 @@ function uiContractLinkModal({ title='Contrato', url='', expiresAt=null, accepte
       <div style="margin-top:10px;">
         <label style="margin:0 0 6px 0;">Link do contrato</label>
         <textarea id="contract_link" readonly style="min-height:84px;">${uiEscapeHtml(url)}</textarea>
-        <div class="muted-sm" style="margin-top:6px;">
-          ${accepted ? 'Contrato aceito. Você pode abrir e imprimir.' : 'Copie e envie para o cliente.'}
-        </div>
+<div class="muted-sm" style="margin-top:6px;">
+  ${accepted ? 'Contrato aceito. Você pode abrir e imprimir.' : 'Copie a mensagem pronta ou apenas o link para enviar ao cliente.'}
+</div>
       </div>
 
-      <div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; margin-top:12px;">
-        <button id="contract_copy" class="btn btn-primary">Copiar link</button>
-        <button id="contract_open" class="btn btn-outline">Abrir</button>
-        <button id="contract_print" class="btn btn-outline">Imprimir</button>
-        <button id="contract_close" class="btn btn-ghost">Fechar</button>
-      </div>
+<div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; margin-top:12px;">
+  <button id="contract_copy_msg" class="btn btn-primary">Copiar mensagem</button>
+  <button id="contract_copy_link" class="btn btn-outline">Copiar só link</button>
+  <button id="contract_open" class="btn btn-outline">Abrir</button>
+  <button id="contract_print" class="btn btn-outline">Imprimir</button>
+  <button id="contract_close" class="btn btn-ghost">Fechar</button>
+</div>
     `;
 
     overlay.appendChild(box);
     document.body.appendChild(overlay);
 
-    const textarea = box.querySelector('#contract_link');
-    const btnCopy  = box.querySelector('#contract_copy');
-    const btnOpen  = box.querySelector('#contract_open');
-    const btnPrint = box.querySelector('#contract_print');
-    const closeX   = box.querySelector('#contract_close_x');
-    const btnClose = box.querySelector('#contract_close');
+const textarea     = box.querySelector('#contract_link');
+const btnCopyMsg   = box.querySelector('#contract_copy_msg');
+const btnCopyLink  = box.querySelector('#contract_copy_link');
+const btnOpen      = box.querySelector('#contract_open');
+const btnPrint     = box.querySelector('#contract_print');
+const closeX       = box.querySelector('#contract_close_x');
+const btnClose     = box.querySelector('#contract_close');
 
     const close = () => {
       try { overlay.remove(); } catch(e){}
@@ -524,27 +598,55 @@ function uiContractLinkModal({ title='Contrato', url='', expiresAt=null, accepte
       }
     });
 
-    btnCopy.onclick = async () => {
-      let ok = false;
-      try {
-        await navigator.clipboard.writeText(url || '');
-        ok = true;
-      } catch(e) {
-        ok = false;
-      }
+btnCopyMsg.onclick = async () => {
+  const msgWhatsapp = buildContractWhatsappMessage(kind, url, observacao);
+  let ok = false;
 
-      if (!ok) {
-        try {
-          textarea.focus();
-          textarea.select();
-          ok = document.execCommand('copy');
-        } catch(e) {
-          ok = false;
-        }
-      }
+  try {
+    await navigator.clipboard.writeText(msgWhatsapp || '');
+    ok = true;
+  } catch(e) {
+    ok = false;
+  }
 
-      toast(ok ? 'Link copiado!' : 'Não consegui copiar automaticamente. Selecione e copie manualmente.', ok);
-    };
+  if (!ok) {
+    try {
+      textarea.value = msgWhatsapp;
+      textarea.focus();
+      textarea.select();
+      ok = document.execCommand('copy');
+      textarea.value = url || '';
+    } catch(e) {
+      ok = false;
+      textarea.value = url || '';
+    }
+  }
+
+  toast(ok ? 'Mensagem copiada!' : 'Não consegui copiar automaticamente. Selecione e copie manualmente.', ok);
+};
+
+btnCopyLink.onclick = async () => {
+  let ok = false;
+
+  try {
+    await navigator.clipboard.writeText(url || '');
+    ok = true;
+  } catch(e) {
+    ok = false;
+  }
+
+  if (!ok) {
+    try {
+      textarea.focus();
+      textarea.select();
+      ok = document.execCommand('copy');
+    } catch(e) {
+      ok = false;
+    }
+  }
+
+  toast(ok ? 'Link copiado!' : 'Não consegui copiar automaticamente. Selecione e copie manualmente.', ok);
+};
 
     btnOpen.onclick = () => {
       if (url) window.open(url, '_blank', 'noopener,noreferrer');
@@ -1294,21 +1396,21 @@ async function loadClientes(q) {
   const all = await DB.list('clientes');
 
   // Termo digitado
-  const termo = (q || '').trim().toLowerCase();
-  const termoNum = termo.replace(/\D/g, ''); // só dígitos (para tel/cpf)
+const termo = normText(q || '');
+const termoNum = (q || '').toString().replace(/\D/g, ''); // só dígitos (para tel/cpf)
 
   let list = all;
 
   // Se tiver algo digitado, filtra por NOME, TELEFONE ou CPF
   if (termo) {
     list = all.filter(c => {
-      const nome = (c.nome || '').toLowerCase();
+      const nome = normText(c.nome || '');
 
       const tel = c.telefone || '';
       const telNum = tel.replace(/\D/g, '');
 
       const cpf = c.cpf || c.documento || '';
-      const cpfLower = cpf.toLowerCase();
+      const cpfLower = normText(cpf);
       const cpfNum = cpf.replace(/\D/g, '');
 
       let okNome = false;
@@ -1643,17 +1745,22 @@ async function renderPets(){
             box-shadow:0 4px 12px rgba(91,62,168,.04);
           ">
             <label class="checkbox-inline" style="display:inline-flex; align-items:center; gap:8px; margin-bottom:10px; font-weight:700; color:#42365f;">
-              <input id="pet_vacina_viral" type="checkbox" />
-              <span>Vacina viral</span>
+<input id="pet_vacina_viral" type="checkbox" />
+<span>Vacina múltipla / principal</span>
             </label>
 
             <div id="pet_grp_vacina_viral">
               <div class="row">
-                ${Select('Tipo', 'pet_vacina_viral_tipo', [
-                  {value:'',label:'Selecione...'},
-                  {value:'V8',label:'V8'},
-                  {value:'V10',label:'V10'}
-                ])}
+${Select('Tipo', 'pet_vacina_viral_tipo', [
+  {value:'',label:'Selecione'},
+  {value:'V8',label:'V8'},
+  {value:'V10',label:'V10'},
+  {value:'DHPP',label:'DHPP'},
+  {value:'DHPPi',label:'DHPPi'},
+  {value:'DHPPi+L',label:'DHPPi+L'},
+  {value:'DHPPL',label:'DHPPL'},
+  {value:'Outro / não sei informar',label:'Outro / não sei informar'}
+])}
                 ${Select('Mês', 'pet_vacina_viral_mes', [
                   {value:'',label:'Mês...'},
                   {value:'1',label:'Janeiro'},
@@ -1682,8 +1789,8 @@ async function renderPets(){
             box-shadow:0 4px 12px rgba(91,62,168,.04);
           ">
             <label class="checkbox-inline" style="display:inline-flex; align-items:center; gap:8px; margin-bottom:10px; font-weight:700; color:#42365f;">
-              <input id="pet_vacina_antirrabica" type="checkbox" />
-              <span>Vacina antirrábica</span>
+<input id="pet_vacina_antirrabica" type="checkbox" />
+<span>Vacina antirrábica / raiva</span>
             </label>
 
             <div id="pet_grp_vacina_antirrabica">
@@ -1848,12 +1955,12 @@ let selectedTutorId = null;
 
 // função para renderizar a lista
 function showTutorsFiltered(filtro='') {
-  dropdown.innerHTML = '';
-  filtro = filtro.toLowerCase();
+dropdown.innerHTML = '';
+filtro = normText(filtro);
 
-  const filtrados = clientesOrdenados.filter(c => 
-    c.nome.toLowerCase().includes(filtro)
-  );
+const filtrados = clientesOrdenados.filter(c => 
+  normText(c.nome).includes(filtro)
+);
 
   filtrados.forEach(c => {
     const opt = document.createElement('div');
@@ -2119,21 +2226,21 @@ async function loadPets(q){
   const clientes = await DB.list('clientes');
   const byId = Object.fromEntries(clientes.map(c => [c.id, c]));
 
-  const termo = (q || '').trim().toLowerCase();
+const termo = normText(q || '');
 
-  let list = pets;
+let list = pets;
 
-  if (termo) {
-    list = pets.filter(p => {
-      const tutorNome = String(byId[p.tutorId]?.nome || '').toLowerCase();
-      const nome = String(p.nome || '').toLowerCase();
-      const especie = String(p.especie || '').toLowerCase();
-      const raca = String(p.raca || '').toLowerCase();
+if (termo) {
+  list = pets.filter(p => {
+    const tutorNome = normText(byId[p.tutorId]?.nome || '');
+    const nome = normText(p.nome || '');
+    const especie = normText(p.especie || '');
+    const raca = normText(p.raca || '');
 
-      const texto = `${nome} ${especie} ${raca} ${tutorNome}`.toLowerCase();
-      return texto.includes(termo);
-    });
-  }
+    const texto = `${nome} ${especie} ${raca} ${tutorNome}`;
+    return texto.includes(termo);
+  });
+}
 
   list.sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || '')));
 
@@ -2177,8 +2284,8 @@ async function loadPets(q){
     const antipulga = !!(p.antipulga ?? p.antipulga);
 
     const chips = [];
-    if (vacinaViral) chips.push('<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#efe7ff; color:#5b3ea8; font-size:11px; font-weight:700;">Viral</span>');
-    if (vacinaAntirrabica) chips.push('<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#e8f7ff; color:#11607a; font-size:11px; font-weight:700;">Antirrábica</span>');
+    if (vacinaViral) chips.push('<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#efe7ff; color:#5b3ea8; font-size:11px; font-weight:700;">Múltipla</span>');
+    if (vacinaAntirrabica) chips.push('<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#e8f7ff; color:#11607a; font-size:11px; font-weight:700;">Raiva</span>');
     if (antipulga) chips.push('<span style="display:inline-block; padding:2px 8px; border-radius:999px; background:#eefbf1; color:#1f7a38; font-size:11px; font-weight:700;">Antipulga</span>');
 
     const tr = document.createElement('tr');
@@ -2449,12 +2556,12 @@ const hTutorDropdown = document.getElementById('h_tutor_dropdown');
 selectedHospTutorId = null;
 
 function showHospTutorsFiltered(filtro='') {
-  hTutorDropdown.innerHTML = '';
-  filtro = filtro.toLowerCase();
+hTutorDropdown.innerHTML = '';
+filtro = normText(filtro);
 
-  const filtrados = clientesOrdenados.filter(c => 
-    c.nome.toLowerCase().includes(filtro)
-  );
+const filtrados = clientesOrdenados.filter(c => 
+  normText(c.nome).includes(filtro)
+);
 
   filtrados.forEach(c => {
     const opt = document.createElement('div');
@@ -2683,36 +2790,36 @@ for (const c of (contratos || [])) {
 
   // se tiver texto de busca, filtra por Tutor, Pet e Período
   if (q) {
-    const qLower = String(q).toLowerCase();
-    list = all.filter(h => {
-      const tutorName = (byCli[h.tutorId]?.nome || '').toLowerCase();
-      const petNamesStr = (h.petIds || [])
-        .map(id => byPet[id]?.nome || '')
-        .join(', ')
-        .toLowerCase();
+const qLower = normText(q || '');
+list = all.filter(h => {
+  const tutorName = normText(byCli[h.tutorId]?.nome || '');
+  const petNamesStr = normText(
+    (h.petIds || [])
+      .map(id => byPet[id]?.nome || '')
+      .join(', ')
+  );
 
-      const dIn  = h.dataEntrada || '';
-      const dOut = h.dataSaida   || '';
+  const dIn  = h.dataEntrada || '';
+  const dOut = h.dataSaida   || '';
 
-      // datas em ISO e em BR
-      const periodoStr = (
-        dIn + ' ' +
-        dOut + ' ' +
-        (fmtBR(dIn)  || '') + ' ' +
-        (fmtBR(dOut) || '')
-      ).toLowerCase();
+  const periodoStr = normText(
+    dIn + ' ' +
+    dOut + ' ' +
+    (fmtBR(dIn)  || '') + ' ' +
+    (fmtBR(dOut) || '')
+  );
 
-      const statusStr = String(h.status || '').toLowerCase();
-      const idStr     = String(h.id || '');
+  const statusStr = normText(h.status || '');
+  const idStr     = String(h.id || '');
 
-      return (
-        tutorName.includes(qLower) ||
-        petNamesStr.includes(qLower) ||
-        periodoStr.includes(qLower) ||
-        statusStr.includes(qLower) ||
-        idStr.includes(qLower)
-      );
-    });
+  return (
+    tutorName.includes(qLower) ||
+    petNamesStr.includes(qLower) ||
+    periodoStr.includes(qLower) ||
+    statusStr.includes(qLower) ||
+    idStr.includes(qLower)
+  );
+});
   }
 
   // monta tabela
@@ -3051,12 +3158,12 @@ ${Select('Status', 'c_status', [
   function showCrecheTutorsFiltered(filtro = '') {
     if (!cTutorDropdown) return;
 
-    cTutorDropdown.innerHTML = '';
-    const termo = (filtro || '').toLowerCase();
+cTutorDropdown.innerHTML = '';
+const termo = normText(filtro || '');
 
-    const filtrados = clientesOrdenados.filter(c =>
-      (c.nome || '').toLowerCase().includes(termo)
-    );
+const filtrados = clientesOrdenados.filter(c =>
+  normText(c.nome || '').includes(termo)
+);
 
     filtrados.forEach(c => {
       const opt = document.createElement('div');
@@ -3372,28 +3479,22 @@ for (const c of (contratos || [])) {
   }
 }
 
-  const termo = (q || '').trim().toLowerCase();
+const termo = normText(q || '');
 
-  let list = todas;
+let list = todas;
 
-  // Se tiver texto digitado, filtra por:
-  // - Nome do tutor
-  // - Nome dos pets
-  // - Mês de referência (mesRef)
-  // - Status
-  // - Observação (nota)
-  if (termo) {
-    list = todas.filter(c => {
-      const tutorNome = byCli[c.tutorId]?.nome || ('Tutor #' + c.tutorId);
-      const petNames = (c.petIds || []).map(id => byPet[id]?.nome || ('#' + id)).join(', ');
-      const mes = String(c.mesRef || '');
-      const status = String(c.status || '');
-      const nota = String(c.nota || '');
+if (termo) {
+  list = todas.filter(c => {
+    const tutorNome = normText(byCli[c.tutorId]?.nome || ('Tutor #' + c.tutorId));
+    const petNames = normText((c.petIds || []).map(id => byPet[id]?.nome || ('#' + id)).join(', '));
+    const mes = normText(c.mesRef || '');
+    const status = normText(c.status || '');
+    const nota = normText(c.nota || '');
 
-      const texto = (tutorNome + ' ' + petNames + ' ' + mes + ' ' + status + ' ' + nota).toLowerCase();
-      return texto.includes(termo);
-    });
-  }
+    const texto = tutorNome + ' ' + petNames + ' ' + mes + ' ' + status + ' ' + nota;
+    return texto.includes(termo);
+  });
+}
 
   // ordena por mesRef
   list.sort((a, b) => String(a.mesRef || '').localeCompare(String(b.mesRef || '')));
@@ -5825,17 +5926,34 @@ async function loadPreCadastros(reset = false){
     return;
   }
 
-  const petsCountByPreId = {};
-  for (const p of (pets || [])) {
-    const preId = Number(p.preCadastroId ?? p.pre_cadastro_id ?? 0);
-    if (!preId) continue;
-    petsCountByPreId[preId] = (petsCountByPreId[preId] || 0) + 1;
+const petsInfoByPreId = {};
+
+for (const p of (pets || [])) {
+  const preId = Number(p.preCadastroId ?? p.pre_cadastro_id ?? 0);
+  if (!preId) continue;
+
+  if (!petsInfoByPreId[preId]) {
+    petsInfoByPreId[preId] = {
+      count: 0,
+      nomes: []
+    };
   }
+
+  petsInfoByPreId[preId].count += 1;
+
+  const nomePet = (p.nome || '').toString().trim();
+  if (nomePet) {
+    petsInfoByPreId[preId].nomes.push(nomePet);
+  }
+}
 
   for (const r of rows) {
     const tr = document.createElement('tr');
 
-    const qtdPets = petsCountByPreId[Number(r.id)] || 0;
+const petsInfo = petsInfoByPreId[Number(r.id)] || { count: 0, nomes: [] };
+const qtdPets = petsInfo.count || 0;
+const nomesPets = petsInfo.nomes.join(', ');
+const petsTexto = nomesPets ? `${qtdPets} pet${qtdPets > 1 ? 's' : ''} — ${nomesPets}` : String(qtdPets);
 
     tr.innerHTML = `
       <td>${r.id ?? ''}</td>
@@ -5843,7 +5961,14 @@ async function loadPreCadastros(reset = false){
       <td>${r.nome || ''}</td>
       <td>${r.cpf || ''}</td>
       <td>${r.telefone || ''}</td>
-      <td style="text-align:center;">${qtdPets}</td>
+      <td title="${petsTexto}">
+  <div style="
+    max-width:220px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  ">${petsTexto}</div>
+</td>
       <td>${preCadStatusTag(r.status)}</td>
       <td class="flex">
         <button class="btn btn-ghost" data-pre-open="${r.id}">Abrir</button>
@@ -5911,11 +6036,11 @@ function preCadPetCardHtml(p, idx){
     const tipoViral = String(p.vacinaViralTipo ?? p.vacina_viral_tipo ?? '').trim() || '—';
     const mesViral = String(p.vacinaViralMes ?? p.vacina_viral_mes ?? '').trim() || '—';
     const anoViral = String(p.vacinaViralAno ?? p.vacina_viral_ano ?? '').trim() || '—';
-    vacinas.push(`Vacina viral (${tipoViral}): ${mesViral}/${anoViral}`);
+    vacinas.push(`Vacina múltipla / principal (${tipoViral}): ${mesViral}/${anoViral}`);
   }
 
   if (p.vacinaAntirrabica || p.vacina_antirrabica) {
-    vacinas.push(`Antirrábica: ${String(p.vacinaAntirrabicaMes ?? p.vacina_antirrabica_mes ?? '').trim() || '—'}/${String(p.vacinaAntirrabicaAno ?? p.vacina_antirrabica_ano ?? '').trim() || '—'}`);
+    vacinas.push(`Vacina antirrábica / raiva: ${String(p.vacinaAntirrabicaMes ?? p.vacina_antirrabica_mes ?? '').trim() || '—'}/${String(p.vacinaAntirrabicaAno ?? p.vacina_antirrabica_ano ?? '').trim() || '—'}`);
   }
 
   if (p.antipulga) {
@@ -6285,10 +6410,10 @@ function preCadPetEditorHtml(p, idx){
 
           <div class="row">
             <div class="col">
-              ${preCadSelectYesNo('Vacina viral em dia', prefix + 'vacina_viral', !!(p.vacinaViral ?? p.vacina_viral))}
+              ${preCadSelectYesNo('Vacina múltipla / principal em dia', prefix + 'vacina_viral', !!(p.vacinaViral ?? p.vacina_viral))}
             </div>
             <div class="col">
-              ${preCadInputEdit('Tipo da vacina viral (V8 ou V10)', prefix + 'vacina_viral_tipo', p.vacinaViralTipo ?? p.vacina_viral_tipo ?? '')}
+              ${preCadInputEdit('Tipo da vacina múltipla / principal (V8, V10, DHPP, DHPPi, DHPPi+L, DHPPL)', prefix + 'vacina_viral_tipo', p.vacinaViralTipo ?? p.vacina_viral_tipo ?? '')}
             </div>
           </div>
 
@@ -6320,13 +6445,13 @@ function preCadPetEditorHtml(p, idx){
 
           <div class="row">
             <div class="col">
-              ${preCadSelectYesNo('Antirrábica em dia', prefix + 'vacina_antirrabica', !!(p.vacinaAntirrabica ?? p.vacina_antirrabica))}
+              ${preCadSelectYesNo('Vacina antirrábica / raiva em dia', prefix + 'vacina_antirrabica', !!(p.vacinaAntirrabica ?? p.vacina_antirrabica))}
             </div>
             <div class="col">
-              ${preCadInputEdit('Mês da antirrábica', prefix + 'vacina_antirrabica_mes', p.vacinaAntirrabicaMes ?? p.vacina_antirrabica_mes ?? '', 'number', 'min="1" max="12"')}
+              ${preCadInputEdit('Mês da vacina antirrábica / raiva', prefix + 'vacina_antirrabica_mes', p.vacinaAntirrabicaMes ?? p.vacina_antirrabica_mes ?? '', 'number', 'min="1" max="12"')}
             </div>
             <div class="col">
-              ${preCadInputEdit('Ano da antirrábica', prefix + 'vacina_antirrabica_ano', p.vacinaAntirrabicaAno ?? p.vacina_antirrabica_ano ?? '', 'number', 'min="2000" max="2100"')}
+              ${preCadInputEdit('Ano da vacina antirrábica / raiva', prefix + 'vacina_antirrabica_ano', p.vacinaAntirrabicaAno ?? p.vacina_antirrabica_ano ?? '', 'number', 'min="2000" max="2100"')}
             </div>
           </div>
         </div>
