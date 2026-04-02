@@ -1,4 +1,4 @@
-// app.js v10.47 (patched)
+// app.js v10.49 (patched)
 document.addEventListener('DOMContentLoaded', async () => {
   // Loading (tela inicial)
   const loadingEl = document.getElementById('app_loading');
@@ -1445,8 +1445,8 @@ const termoNum = (q || '').toString().replace(/\D/g, ''); // só dígitos (para 
     });
   }
 
-  // Ordena por nome
-  list.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+  // Ordena do cadastro mais novo para o mais antigo
+  list.sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
 
   // Monta a tabela
   for (const c of list) {
@@ -2241,8 +2241,8 @@ if (termo) {
     return texto.includes(termo);
   });
 }
-
-  list.sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || '')));
+  // Ordena do cadastro mais novo para o mais antigo
+  list.sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
 
   if (badge) {
     const total = list.length;
@@ -2676,6 +2676,13 @@ const tutorId = Number(selectedHospTutorId);
       get('h_data_out').focus();
       return;
     }
+	
+	    // Data de saída não pode ser anterior à data de entrada
+    if (dataEntrada && dataSaida && dataSaida < dataEntrada) {
+      toast('A data de saída não pode ser anterior à data de entrada', false);
+      get('h_data_out').focus();
+      return;
+    }
 
     // Horas obrigatórias
     if (!horaEntrada) {
@@ -2737,6 +2744,31 @@ try {
 
     renderHosp();
   };
+
+  // Impede escolher data de saída anterior à entrada
+  const hDataIn = document.getElementById('h_data_in');
+  const hDataOut = document.getElementById('h_data_out');
+
+  function syncHospDateLimits(){
+    if (!hDataIn || !hDataOut) return;
+
+    const entrada = (hDataIn.value || '').trim();
+
+    if (entrada) {
+      hDataOut.min = entrada;
+
+      if (hDataOut.value && hDataOut.value < entrada) {
+        hDataOut.value = entrada;
+      }
+    } else {
+      hDataOut.removeAttribute('min');
+    }
+  }
+
+  if (hDataIn && hDataOut) {
+    hDataIn.addEventListener('change', syncHospDateLimits);
+    syncHospDateLimits();
+  }
 
   document.getElementById('h_limpar').onclick = ()=>renderHosp();
   document.getElementById('h_buscar').onclick = ()=>loadHosp(document.getElementById('h_busca').value.trim());
@@ -2823,7 +2855,7 @@ list = all.filter(h => {
   }
 
   // monta tabela
-  for (const h of list.sort((a,b)=>String(a.dataEntrada).localeCompare(String(b.dataEntrada)))) {
+  for (const h of list.sort((a, b) => Number(b.id || 0) - Number(a.id || 0))) {
     const tutor = byCli[h.tutorId]?.nome || ('Tutor #'+h.tutorId);
     const petNames = (h.petIds||[]).map(id=>byPet[id]?.nome||('#'+id)).join(', ');
     const tr = document.createElement('tr');
@@ -3496,8 +3528,8 @@ if (termo) {
   });
 }
 
-  // ordena por mesRef
-  list.sort((a, b) => String(a.mesRef || '').localeCompare(String(b.mesRef || '')));
+  // Ordena do cadastro mais novo para o mais antigo
+  list.sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
 
   for (const c of list) {
     const tutor = byCli[c.tutorId]?.nome || ('Tutor #'+c.tutorId);
@@ -5310,6 +5342,57 @@ async function abrirPagamento(tipo, kind, refId){
   const restanteAntes = Math.max(0, valorBase - estadoAnterior.pago);
   const valorAproveitado = Math.min(restanteAntes, valorDigitado);
   const novoTotalPago = estadoAnterior.pago + valorAproveitado;
+
+  if (valorDigitado === 0) {
+    const statusAtual = normalizeAgendaStatus(rec.status);
+
+    rec.pendente = Math.max(0, valorBase - estadoAnterior.pago) > 0;
+
+    if (tipo === 'checkin') {
+      if (statusAtual !== 'checkout') {
+        rec.status = 'checkin';
+      }
+    } else {
+      rec.status = 'checkout';
+    }
+
+    await DB.put(coll, rec);
+
+    await DB.add('logs', {
+      at: new Date().toISOString(),
+      action: `${tipo}_sem_pagamento`,
+      entity: coll.slice(0, -1),
+      entityId: refId,
+      note: `${kind} #${refId} — ${tipo} realizado sem pagamento no momento`
+    });
+
+    toast(`${tipo === 'checkin' ? 'Check-in' : 'Check-out'} registrado`);
+
+    console.error('DEBUG A: salvar terminou sem pagamento, status =', rec.status, 'coll=', coll, 'id=', rec.id);
+
+    const fresh = await DB.get(coll, refId);
+    console.error('DEBUG B: status vindo do DB.get logo após salvar =', fresh && fresh.status);
+
+    await new Promise(r => setTimeout(r, 200));
+
+    console.error('DEBUG C: chamando refresh... window.__refreshCheckin =', typeof window.__refreshCheckin);
+
+    if (typeof window.__refreshCheckin === 'function') {
+      await window.__refreshCheckin();
+      console.error('DEBUG D: refresh finalizou');
+    } else {
+      await renderCheckin();
+      console.error('DEBUG D: renderCheckin finalizou');
+    }
+
+    if (document.getElementById('pay_tbody_hosp') || document.getElementById('pay_tbody_creche')) {
+      const ini = document.getElementById('pay_inicio')?.value || null;
+      const fim = document.getElementById('pay_fim')?.value || null;
+      await loadPagamentos(ini, fim, false);
+    }
+
+    return;
+  }
 
   if (valorAproveitado <= 0) {
     toast('Este serviço já está totalmente quitado. Nenhum novo pagamento foi lançado.', false);
